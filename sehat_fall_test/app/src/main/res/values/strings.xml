@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">SEHAT-ERS</string>
+    <string name="service_name">SEHAT Fall Detection Service</string>
+    <string name="channel_monitoring_name">Continuous Fall Monitoring</string>
+    <string name="channel_monitoring_desc">Persistent notification required for real-time background sensor sampling</string>
+    <string name="channel_emergency_name">Emergency Alert Notifications</string>
+    <string name="channel_emergency_desc">High-priority alerts when a fall is detected</string>
+
+    <string name="im_ok">I\'M OK</string>
+    <string name="cancel_alert">Cancel Alert</string>
+    <string name="fall_detected_title">FALL DETECTED</string>
+    <string name="pocket_mode_title">Pocket Mode</string>
+    <string name="long_press_to_exit">Long press screen to exit</string>
+</resources>

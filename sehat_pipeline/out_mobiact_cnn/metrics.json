@@ -1,0 +1,18 @@
+{
+  "val": {
+    "threshold": 0.12000000000000001,
+    "sensitivity": 0.9964912280701754,
+    "specificity": 0.9811492459698388,
+    "auc": 0.999636897756612
+  },
+  "test": {
+    "threshold": 0.12000000000000001,
+    "sensitivity": 0.9947643979057592,
+    "specificity": 0.9495778611632271,
+    "auc": 0.999157277617883
+  },
+  "targets": {
+    "sensitivity": 0.95,
+    "specificity": 0.98
+  }
+}

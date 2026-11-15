@@ -1,0 +1,29 @@
+{
+  "sample_rate": 16000,
+  "chunk_samples": 32000,
+  "input": "float32 waveform [32000], range -1..1 (int16 PCM / 32768)",
+  "output": "probabilities [1, classes]",
+  "classes": [
+    "background",
+    "scream",
+    "cry",
+    "glass_break"
+  ],
+  "background_class": "background",
+  "p_distress": "1 - probability of 'background'",
+  "suggested_thresholds": {
+    "fa_1pct": {
+      "threshold": 0.89600670337677,
+      "validation_sensitivity": 0.5268817204301075
+    },
+    "fa_2pct": {
+      "threshold": 0.7785440683364868,
+      "validation_sensitivity": 0.635752688172043
+    },
+    "fa_5pct": {
+      "threshold": 0.6015244722366333,
+      "validation_sensitivity": 0.7405913978494624
+    }
+  },
+  "needs_select_tf_ops": false
+}

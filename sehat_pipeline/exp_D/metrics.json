@@ -1,0 +1,62 @@
+{
+  "test_macro_f1": 0.7102804191709313,
+  "target": 0.9,
+  "classes": [
+    "background",
+    "scream",
+    "cry",
+    "glass_break"
+  ],
+  "per_class": {
+    "background": {
+      "precision": 0.9669,
+      "recall": 0.9329,
+      "f1-score": 0.9496,
+      "support": 3038
+    },
+    "scream": {
+      "precision": 0.8407,
+      "recall": 0.8656,
+      "f1-score": 0.853,
+      "support": 439
+    },
+    "cry": {
+      "precision": 0.6897,
+      "recall": 0.8287,
+      "f1-score": 0.7529,
+      "support": 397
+    },
+    "glass_break": {
+      "precision": 0.1905,
+      "recall": 0.5714,
+      "f1-score": 0.2857,
+      "support": 7
+    }
+  },
+  "confusion_matrix_rows_actual_cols_predicted": [
+    [
+      2834,
+      66,
+      122,
+      16
+    ],
+    [
+      33,
+      380,
+      26,
+      0
+    ],
+    [
+      62,
+      5,
+      329,
+      1
+    ],
+    [
+      2,
+      1,
+      0,
+      4
+    ]
+  ]
+}

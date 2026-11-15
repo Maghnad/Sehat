@@ -1,0 +1,12 @@
+              precision    recall  f1-score   support
+
+  background       0.97      0.96      0.97      3038
+      scream       0.91      0.90      0.90       439
+         cry       0.76      0.85      0.80       397
+ glass_break       0.57      0.57      0.57         7
+
+    accuracy                           0.94      3881
+   macro avg       0.80      0.82      0.81      3881
+weighted avg       0.94      0.94      0.94      3881
+
+TEST macro-F1 = 0.811

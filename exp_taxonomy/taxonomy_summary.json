@@ -1,0 +1,63 @@
+{
+  "metrics": [
+    {
+      "AUC": 0.9617,
+      "sens@1%FA": 0.6042,
+      "sens@2%FA": 0.7071,
+      "sens@5%FA": 0.8255,
+      "Macro-F1": 0.8426,
+      "Taxonomy": "0: Baseline 4-Class (bg/scream/cry/glass)"
+    },
+    {
+      "AUC": 0.9609,
+      "sens@1%FA": 0.602,
+      "sens@2%FA": 0.6981,
+      "sens@5%FA": 0.8132,
+      "Macro-F1": 0.8181,
+      "Taxonomy": "1: 5-Class (+ human_nondistress)"
+    },
+    {
+      "AUC": 0.9576,
+      "sens@1%FA": 0.5892,
+      "sens@2%FA": 0.683,
+      "sens@5%FA": 0.807,
+      "Macro-F1": 0.8011,
+      "Taxonomy": "2: 4-Class (+ human_nd, merged vocal)"
+    }
+  ],
+  "false_alarms": {
+    "Baseline 4-Class": {
+      "breath": 0.0118,
+      "cough": 0.1436,
+      "dcase_scene": 0.0063,
+      "esc50_ambient": 0.0354,
+      "laugh": 0.2365,
+      "sneeze": 0.1366,
+      "yawm": 0.3448,
+      "yawn": 0.2085,
+      "overall_bg_fa": 0.0831
+    },
+    "5-Class (human_nondistress)": {
+      "breath": 0.0079,
+      "cough": 0.0943,
+      "dcase_scene": 0.0109,
+      "esc50_ambient": 0.0305,
+      "laugh": 0.174,
+      "sneeze": 0.1308,
+      "yawm": 0.1897,
+      "yawn": 0.1205,
+      "overall_bg_fa": 0.0613
+    },
+    "4-Class (merged vocal)": {
+      "breath": 0.0082,
+      "cough": 0.0889,
+      "dcase_scene": 0.0047,
+      "esc50_ambient": 0.025,
+      "laugh": 0.1608,
+      "sneeze": 0.0901,
+      "yawm": 0.1897,
+      "yawn": 0.1433,
+      "overall_bg_fa": 0.0558
+    }
+  }
+}

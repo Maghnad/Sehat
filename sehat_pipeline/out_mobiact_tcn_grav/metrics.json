@@ -1,0 +1,29 @@
+{
+  "val": {
+    "threshold": 0.05,
+    "sensitivity": 1.0,
+    "specificity": 0.9973998959958398,
+    "auc": 0.9999997719207014
+  },
+  "test": {
+    "threshold": 0.05,
+    "sensitivity": 0.9965095986038395,
+    "specificity": 0.9963649155722326,
+    "auc": 0.9999373790556271
+  },
+  "targets": {
+    "sensitivity": 0.95,
+    "specificity": 0.99
+  },
+  "counts": {
+    "val_windows": 8262,
+    "test_windows": 9101,
+    "test_falls": 573,
+    "test_subjects": 11
+  },
+  "test_diagnostic_sensitivity_at_specificity": {
+    "95%": 1.0,
+    "98%": 1.0,
+    "99%": 1.0
+  }
+}

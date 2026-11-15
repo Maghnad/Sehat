@@ -1,0 +1,9 @@
+sound_type,total_chunks,false_alarms,fa_rate
+Nonspeech7k: yawm,58,14,0.2414
+Nonspeech7k: laugh,2258,433,0.1918
+Nonspeech7k: yawn,307,49,0.1596
+Nonspeech7k: sneeze,344,43,0.125
+Nonspeech7k: cough,1114,121,0.1086
+ESC-50: ambient,3840,115,0.0299
+Nonspeech7k: breath,3555,28,0.0079
+DCASE: acoustic scene,640,3,0.0047

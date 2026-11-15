@@ -1,0 +1,90 @@
+{
+  "oof_macro_f1": 0.8369365540402756,
+  "fold_macro_f1_mean": 0.8370993801330224,
+  "fold_macro_f1_std": 0.031077234730364292,
+  "fold_macro_f1s": [
+    0.8509,
+    0.809,
+    0.8085,
+    0.826,
+    0.8911
+  ],
+  "distress_auc": 0.9603598514261834,
+  "sensitivity_at_1pct_fa": 0.5997993981945837,
+  "sensitivity_at_2pct_fa": 0.7115346038114343,
+  "sensitivity_at_5pct_fa": 0.8166499498495486,
+  "bootstrap_95ci": {
+    "macro_f1_95ci": [
+      0.7875,
+      0.8694
+    ],
+    "auc_95ci": [
+      0.9474,
+      0.9707
+    ],
+    "sens@1%FA_95ci": [
+      0.5069,
+      0.691
+    ],
+    "sens@2%FA_95ci": [
+      0.641,
+      0.7691
+    ],
+    "sens@5%FA_95ci": [
+      0.7579,
+      0.8658
+    ]
+  },
+  "per_class": {
+    "background": {
+      "precision": 0.9387,
+      "recall": 0.9335,
+      "f1-score": 0.9361,
+      "support": 12116
+    },
+    "scream": {
+      "precision": 0.8063,
+      "recall": 0.7948,
+      "f1-score": 0.8005,
+      "support": 1126
+    },
+    "cry": {
+      "precision": 0.8182,
+      "recall": 0.8341,
+      "f1-score": 0.8261,
+      "support": 3810
+    },
+    "glass_break": {
+      "precision": 0.7241,
+      "recall": 0.8571,
+      "f1-score": 0.785,
+      "support": 49
+    }
+  },
+  "confusion_matrix": [
+    [
+      11310,
+      147,
+      643,
+      16
+    ],
+    [
+      168,
+      895,
+      63,
+      0
+    ],
+    [
+      564,
+      68,
+      3178,
+      0
+    ],
+    [
+      7,
+      0,
+      0,
+      42
+    ]
+  ]
+}

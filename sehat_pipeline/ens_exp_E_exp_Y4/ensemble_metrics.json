@@ -1,0 +1,30 @@
+{
+  "model1": "exp_E",
+  "model2": "exp_Y4",
+  "best_w": 0.46,
+  "val_auc_best": 0.9608558094926196,
+  "test_summary": [
+    {
+      "Model": "Model 1 (exp_E)",
+      "AUC": 0.9751,
+      "sens@1%FA": 0.6192,
+      "sens@2%FA": 0.7533,
+      "sens@5%FA": 0.879
+    },
+    {
+      "Model": "Model 2 (exp_Y4)",
+      "AUC": 0.9862,
+      "sens@1%FA": 0.7782,
+      "sens@2%FA": 0.8517,
+      "sens@5%FA": 0.9383
+    },
+    {
+      "Model": "Ensemble (w=0.46)",
+      "AUC": 0.9894,
+      "sens@1%FA": 0.8078,
+      "sens@2%FA": 0.8707,
+      "sens@5%FA": 0.9395
+    }
+  ],
+  "multi_class_f1": {}
+}

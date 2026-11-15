@@ -1,0 +1,43 @@
+run out_mobiact_tcn_grav: threshold 0.05, orient=gravity, 11 test volunteers
+559 complete trials of the test volunteers
+
+==============================================================================
+ALERT RULE: 1 consecutive flagged window(s)  (stride 0.5 s, window 2.0 s)
+falls: 120 of 120 fall trials detected (100.0%); alert time relative to the impact peak: median +0.3 s, range -0.8 to +0.9 s (negative = fired before the peak)
+(a fall counts as detected if an alert fires between 1.0 s before and 3.0 s after the impact peak)
+alerts raised in the quiet parts of fall trials (away from the impact): 0
+daily activities: 3.04 hours analysed, 27 alerts  ->  8.9 alerts per hour
+
+  activity trials   hours  alerts  alerts/hour   trials with an alert
+  CSI          66    0.10      11        105.2           10 (15%)
+  CSO          66    0.10       7         67.0            7 (11%)
+  STN          66    0.18       5         28.1            4 (6%)
+  SCH          66    0.10       2         19.1            2 (3%)
+  JOG          33    0.27       1          3.7            1 (3%)
+  WAL          11    0.92       1          1.1            1 (9%)
+  CHU          18    0.03       0          0.0            0 (0%)
+  JUM          33    0.27       0          0.0            0 (0%)
+  SIT           3    0.05       0          0.0            0 (0%)
+  STD          11    0.84       0          0.0            0 (0%)
+  STU          66    0.18       0          0.0            0 (0%)
+
+==============================================================================
+ALERT RULE: 2 consecutive flagged window(s)  (stride 0.5 s, window 2.0 s)
+falls: 120 of 120 fall trials detected (100.0%); alert time relative to the impact peak: median +0.8 s, range -0.3 to +1.4 s (negative = fired before the peak)
+(a fall counts as detected if an alert fires between 1.0 s before and 3.0 s after the impact peak)
+alerts raised in the quiet parts of fall trials (away from the impact): 0
+daily activities: 3.04 hours analysed, 11 alerts  ->  3.6 alerts per hour
+
+  activity trials   hours  alerts  alerts/hour   trials with an alert
+  CSI          66    0.10       7         67.0            7 (11%)
+  CSO          66    0.10       4         38.3            4 (6%)
+  CHU          18    0.03       0          0.0            0 (0%)
+  JOG          33    0.27       0          0.0            0 (0%)
+  JUM          33    0.27       0          0.0            0 (0%)
+  SCH          66    0.10       0          0.0            0 (0%)
+  SIT           3    0.05       0          0.0            0 (0%)
+  STD          11    0.84       0          0.0            0 (0%)
+  STN          66    0.18       0          0.0            0 (0%)
+  STU          66    0.18       0          0.0            0 (0%)
+  WAL          11    0.92       0          0.0            0 (0%)
+

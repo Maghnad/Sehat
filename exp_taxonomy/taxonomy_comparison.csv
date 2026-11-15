@@ -1,0 +1,4 @@
+Taxonomy,AUC,sens@1%FA,sens@2%FA,sens@5%FA,Macro-F1
+0: Baseline 4-Class (bg/scream/cry/glass),0.9617,0.6042,0.7071,0.8255,0.8426
+1: 5-Class (+ human_nondistress),0.9609,0.602,0.6981,0.8132,0.8181
+"2: 4-Class (+ human_nd, merged vocal)",0.9576,0.5892,0.683,0.807,0.8011

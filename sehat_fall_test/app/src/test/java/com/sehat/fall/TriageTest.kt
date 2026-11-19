@@ -18,8 +18,7 @@ class TriageTest {
     }
 
     private fun isHelpSpotted(inputPhrase: String): Boolean {
-        val lower = inputPhrase.lowercase().trim()
-        return VoiceCommandListener.HELP_KEYWORDS.any { lower.contains(it) }
+        return VoiceCommandListener.isPhraseMatching(inputPhrase)
     }
 
     @Test
@@ -34,6 +33,10 @@ class TriageTest {
         assertTrue(isHelpSpotted("this is an emergency"))
         assertTrue(isHelpSpotted("bachao"))
         assertTrue(isHelpSpotted("save me"))
+        assertTrue(isHelpSpotted("yelp"))
+        assertTrue(isHelpSpotted("held"))
+        assertTrue(isHelpSpotted("sos"))
+        assertTrue(isHelpSpotted("please assist"))
 
         // True negatives: phrases that should NOT trigger help
         assertFalse(isHelpSpotted("I am okay"))

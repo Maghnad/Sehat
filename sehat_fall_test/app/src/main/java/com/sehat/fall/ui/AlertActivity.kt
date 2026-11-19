@@ -56,6 +56,8 @@ class AlertActivity : Activity() {
     private lateinit var phaseBadge: TextView
     private lateinit var titleTextView: TextView
     private lateinit var promptTextView: TextView
+    private lateinit var liveHeardTextView: TextView
+    private lateinit var micLevelTextView: TextView
     private lateinit var timerTextView: TextView
     private lateinit var substatusTextView: TextView
     private lateinit var actionButtonPrimary: Button
@@ -121,37 +123,58 @@ class AlertActivity : Activity() {
             textSize = 15f
             setTextColor(Color.parseColor("#FECACA"))
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 16)
+            setPadding(0, 0, 0, 12)
         }
         rootLayout.addView(probView)
 
         promptTextView = TextView(this).apply {
             text = "🎤 LISTENING FOR VOICE COMMAND 'HELP'..."
-            textSize = 20f
+            textSize = 19f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor("#38BDF8"))
             gravity = Gravity.CENTER
-            setPadding(0, 12, 0, 12)
+            setPadding(0, 8, 0, 4)
         }
         rootLayout.addView(promptTextView)
 
+        // Live transcription view showing what words the recognizer is currently hearing
+        liveHeardTextView = TextView(this).apply {
+            text = "Say 'HELP' loudly to call relative"
+            textSize = 14f
+            setTypeface(typeface, Typeface.ITALIC)
+            setTextColor(Color.parseColor("#93C5FD"))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 4)
+        }
+        rootLayout.addView(liveHeardTextView)
+
+        // Live audio level visualizer
+        micLevelTextView = TextView(this).apply {
+            text = "Mic Level: ▰▱▱▱▱▱"
+            textSize = 12f
+            setTextColor(Color.parseColor("#6EE7B7"))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 8)
+        }
+        rootLayout.addView(micLevelTextView)
+
         timerTextView = TextView(this).apply {
             text = "$voiceSeconds"
-            textSize = 80f
+            textSize = 76f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 8)
+            setPadding(0, 4, 0, 4)
         }
         rootLayout.addView(timerTextView)
 
         substatusTextView = TextView(this).apply {
             val relativeName = SehatApp.instance.settingsManager.relativeName
             text = "Say 'HELP' loudly to immediately call $relativeName.\nOr tap button below if you are unharmed."
-            textSize = 15f
+            textSize = 14f
             setTextColor(Color.parseColor("#FCA5A5"))
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 32)
+            setPadding(0, 0, 0, 24)
         }
         rootLayout.addView(substatusTextView)
 
@@ -162,24 +185,24 @@ class AlertActivity : Activity() {
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.BLACK)
             setBackgroundColor(Color.parseColor("#10B981")) // Emerald green
-            setPadding(32, 24, 32, 24)
+            setPadding(32, 22, 32, 22)
             setOnClickListener { handleUserSafeConfirmation() }
         }
         val btnParams1 = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(16, 8, 16, 12) }
+        ).apply { setMargins(16, 6, 16, 10) }
         rootLayout.addView(actionButtonPrimary, btnParams1)
 
         // Secondary Action Button (Immediate Emergency Call)
         val relativeName = SehatApp.instance.settingsManager.relativeName
         actionButtonSecondary = Button(this).apply {
             text = "CALL $relativeName NOW"
-            textSize = 16f
+            textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#DC2626")) // Bright Red
-            setPadding(24, 18, 24, 18)
+            setPadding(24, 16, 24, 16)
             setOnClickListener {
                 triggerDirectCall("Manual emergency button pressed on alert screen")
             }
@@ -217,19 +240,37 @@ class AlertActivity : Activity() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasMicPermission) {
-            voiceListener = VoiceCommandListener(
-                context = this,
-                onHelpSpotted = { recognizedText ->
-                    runOnUiThread {
-                        handleVoiceHelpSpotted(recognizedText)
+            // Delay 300 ms so attention chime is finished and microphone hardware is completely free
+            mainHandler.postDelayed({
+                if (currentPhase == AlertPhase.LISTENING_FOR_HELP) {
+                    voiceListener = VoiceCommandListener(
+                        context = this,
+                        onHelpSpotted = { recognizedText ->
+                            runOnUiThread {
+                                handleVoiceHelpSpotted(recognizedText)
+                            }
+                        },
+                        onSpeechTextUpdate = { partialSpeech ->
+                            runOnUiThread {
+                                liveHeardTextView.text = "Hearing: \"$partialSpeech\""
+                                liveHeardTextView.setTextColor(Color.parseColor("#FDE047")) // Bright yellow
+                            }
+                        },
+                        onMicLevelChanged = { db ->
+                            runOnUiThread {
+                                updateMicLevelVisual(db)
+                            }
+                        },
+                        onStatusUpdate = { status ->
+                            runOnUiThread {
+                                promptTextView.text = status
+                            }
+                        }
+                    ).apply {
+                        start()
                     }
-                },
-                onErrorOrSilence = { reason ->
-                    // Keep countdown running smoothly; if silence or no-match, timer will transition to Phase 2
                 }
-            ).apply {
-                start()
-            }
+            }, 300L)
         } else {
             promptTextView.text = "Microphone permission required for 'HELP' command.\nAwaiting user input..."
             promptTextView.setTextColor(Color.parseColor("#FBBF24"))
@@ -253,8 +294,26 @@ class AlertActivity : Activity() {
         }.start()
     }
 
+    private fun updateMicLevelVisual(db: Float) {
+        if (currentPhase != AlertPhase.LISTENING_FOR_HELP) return
+        val normalized = ((db - 30f) / 50f).coerceIn(0f, 1f)
+        val bars = (normalized * 8).toInt()
+        val visual = buildString {
+            append("Mic Level: ")
+            for (i in 0 until 8) {
+                if (i <= bars) append("▰") else append("▱")
+            }
+        }
+        micLevelTextView.text = visual
+        if (bars > 5) {
+            micLevelTextView.setTextColor(Color.parseColor("#F87171")) // Red/High
+        } else {
+            micLevelTextView.setTextColor(Color.parseColor("#6EE7B7")) // Green
+        }
+    }
+
     /**
-     * Triggered when voice command "HELP" is successfully heard!
+     * Triggered when voice command "HELP" (or loud vocal distress) is successfully recognized!
      */
     private fun handleVoiceHelpSpotted(recognizedPhrase: String) {
         if (currentPhase != AlertPhase.LISTENING_FOR_HELP) return
@@ -273,6 +332,9 @@ class AlertActivity : Activity() {
 
         promptTextView.text = "🚨 HEARD: \"$recognizedPhrase\""
         promptTextView.setTextColor(Color.parseColor("#F87171"))
+
+        liveHeardTextView.text = "Emergency matched! Placing call now..."
+        micLevelTextView.visibility = View.GONE
 
         timerTextView.text = "CALLING"
         timerTextView.textSize = 42f
@@ -305,11 +367,14 @@ class AlertActivity : Activity() {
         currentPhase = AlertPhase.AWAITING_SAFE_CONFIRMATION
 
         voiceListener?.stop()
+        micLevelTextView.visibility = View.GONE
+        liveHeardTextView.visibility = View.GONE
+
         val settings = SehatApp.instance.settingsManager
         val relativeName = settings.relativeName
 
-        // Change background to pulsing high-alert red
-        rootLayout.setBackgroundColor(Color.parseColor("#581C87")) // Purple-crimson alert
+        // Change background to pulsing high-alert purple-red
+        rootLayout.setBackgroundColor(Color.parseColor("#581C87"))
         phaseBadge.text = "PHASE 2: SAFE CONFIRMATION REQUIRED"
         phaseBadge.setBackgroundColor(Color.parseColor("#B45309")) // Amber
         phaseBadge.setTextColor(Color.WHITE)

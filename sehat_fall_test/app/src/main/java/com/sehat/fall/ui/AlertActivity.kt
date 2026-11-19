@@ -62,6 +62,7 @@ class AlertActivity : Activity() {
     private lateinit var substatusTextView: TextView
     private lateinit var actionButtonPrimary: Button
     private lateinit var actionButtonSecondary: Button
+    private lateinit var voiceMicWaveView: com.sehat.fall.ui.view.VoiceMicWaveView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,13 +149,21 @@ class AlertActivity : Activity() {
         }
         rootLayout.addView(liveHeardTextView)
 
-        // Live audio level visualizer
+        // Animated Voice Microphone Equalizer Wave
+        voiceMicWaveView = com.sehat.fall.ui.view.VoiceMicWaveView(this)
+        val waveParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            120
+        ).apply { setMargins(0, 10, 0, 10) }
+        rootLayout.addView(voiceMicWaveView, waveParams)
+
+        // Text indicator fallback
         micLevelTextView = TextView(this).apply {
-            text = "Mic Level: ▰▱▱▱▱▱"
+            text = "Listening for audio input..."
             textSize = 12f
             setTextColor(Color.parseColor("#6EE7B7"))
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 8)
+            setPadding(0, 0, 0, 4)
         }
         rootLayout.addView(micLevelTextView)
 
@@ -258,6 +267,7 @@ class AlertActivity : Activity() {
                         },
                         onMicLevelChanged = { db ->
                             runOnUiThread {
+                                voiceMicWaveView.updateRmsLevel(db)
                                 updateMicLevelVisual(db)
                             }
                         },
@@ -334,6 +344,7 @@ class AlertActivity : Activity() {
         promptTextView.setTextColor(Color.parseColor("#F87171"))
 
         liveHeardTextView.text = "Emergency matched! Placing call now..."
+        voiceMicWaveView.markRecognized()
         micLevelTextView.visibility = View.GONE
 
         timerTextView.text = "CALLING"
@@ -367,6 +378,7 @@ class AlertActivity : Activity() {
         currentPhase = AlertPhase.AWAITING_SAFE_CONFIRMATION
 
         voiceListener?.stop()
+        voiceMicWaveView.visibility = View.GONE
         micLevelTextView.visibility = View.GONE
         liveHeardTextView.visibility = View.GONE
 

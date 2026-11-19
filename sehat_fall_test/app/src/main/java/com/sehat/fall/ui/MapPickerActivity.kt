@@ -28,11 +28,19 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import com.sehat.fall.R
 import com.sehat.fall.SehatApp
 import com.sehat.fall.alert.AlertManager
 import com.sehat.fall.location.LocationFenceManager
 
 class MapPickerActivity : Activity() {
+
+    companion object {
+        // =========================================================================
+        // 🔑 PASTE YOUR CARTO API KEY HERE (Between the quotes):
+        // =========================================================================
+        var CARTO_API_KEY: String = "cb1_5cl1_1_96954234557e29bcc8450098"
+    }
 
     private lateinit var webView: WebView
     private lateinit var coordsTextView: TextView
@@ -98,8 +106,8 @@ class MapPickerActivity : Activity() {
             textSize = 14f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor("#38BDF8"))
-            setBackgroundColor(Color.parseColor("#1E293B"))
-            setPadding(18, 12, 18, 12)
+            setBackgroundResource(R.drawable.bg_card_surface)
+            setPadding(20, 14, 20, 14)
         }
         root.addView(coordsTextView)
 
@@ -112,15 +120,22 @@ class MapPickerActivity : Activity() {
         ).apply { setMargins(0, 10, 0, 10) }
         root.addView(webView, webParams)
 
+        // Bottom Control Surface Card
+        val bottomCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card_dark)
+            setPadding(20, 16, 20, 16)
+        }
+
         // Radius Slider Bar
         radiusTextView = TextView(this).apply {
             text = "Safe Zone Radius: ${selectedRadiusMeters.toInt()} meters"
             textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setPadding(0, 4, 0, 2)
+            setPadding(0, 0, 0, 4)
         }
-        root.addView(radiusTextView)
+        bottomCard.addView(radiusTextView)
 
         radiusSeekBar = SeekBar(this).apply {
             max = 18 // 50m to 500m (step 25m)
@@ -138,7 +153,7 @@ class MapPickerActivity : Activity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        root.addView(radiusSeekBar)
+        bottomCard.addView(radiusSeekBar)
 
         // Action Buttons Row
         val btnRow = LinearLayout(this).apply {
@@ -172,7 +187,8 @@ class MapPickerActivity : Activity() {
         }
         btnRow.addView(savePinBtn, saveParams)
 
-        root.addView(btnRow)
+        bottomCard.addView(btnRow)
+        root.addView(bottomCard)
 
         setContentView(root)
     }
@@ -200,10 +216,18 @@ class MapPickerActivity : Activity() {
         webView.addJavascriptInterface(AndroidMapBridge(), "AndroidBridge")
 
         val htmlContent = buildLeafletMapHtml(selectedLat, selectedLon, selectedRadiusMeters)
-        webView.loadDataWithBaseURL("https://cartocdn.com", htmlContent, "text/html", "UTF-8", null)
+        webView.loadDataWithBaseURL("https://server.arcgisonline.com", htmlContent, "text/html", "UTF-8", null)
     }
 
     private fun buildLeafletMapHtml(lat: Double, lon: Double, radius: Float): String {
+        val hasCartoKey = CARTO_API_KEY.isNotBlank()
+        val tileUrl = if (hasCartoKey) {
+            "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=$CARTO_API_KEY&key=$CARTO_API_KEY"
+        } else {
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+        }
+        val subdomainsOption = if (hasCartoKey) "subdomains: 'abcd'," else ""
+
         return """
         <!DOCTYPE html>
         <html>
@@ -221,12 +245,20 @@ class MapPickerActivity : Activity() {
             <script>
                 var map = L.map('map', { zoomControl: true }).setView([$lat, $lon], 16);
                 
-                // CARTO Voyager tiles: Fast, modern, high-res raster tiles with no mobile 418 blocking
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    maxZoom: 20,
-                    subdomains: 'abcd',
-                    attribution: '&copy; OpenStreetMap &copy; CARTO'
-                }).addTo(map);
+                var mainTiles = L.tileLayer('$tileUrl', {
+                    maxZoom: 19,
+                    $subdomainsOption
+                    attribution: '&copy; CARTO &copy; Esri &copy; OpenStreetMap'
+                });
+                mainTiles.addTo(map);
+
+                // Seamless fallback to Esri World Street Map if Carto key or network encounters an issue
+                mainTiles.on('tileerror', function() {
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: '&copy; Esri'
+                    }).addTo(map);
+                });
 
                 var marker = L.marker([$lat, $lon], { draggable: true }).addTo(map);
                 var circle = L.circle([$lat, $lon], {

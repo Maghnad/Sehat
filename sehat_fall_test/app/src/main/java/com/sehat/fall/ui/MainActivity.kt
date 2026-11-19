@@ -44,6 +44,11 @@ class MainActivity : Activity() {
     private lateinit var mainTabContainer: LinearLayout
     private lateinit var testingTabContainer: LinearLayout
 
+    // Custom Visualizers & Animations
+    private lateinit var radarPulseView: com.sehat.fall.ui.view.AnimatedRadarPulseView
+    private lateinit var probabilityGauge: com.sehat.fall.ui.view.CircularProbabilityGauge
+    private lateinit var motionWaveformView: com.sehat.fall.ui.view.MotionWaveformView
+
     // TAB 1: Main (Location & Power Saving) views
     private lateinit var geoStatusCard: TextView
     private lateinit var geoToggleBtn: Button
@@ -69,7 +74,13 @@ class MainActivity : Activity() {
     private val refreshRunnable = object : Runnable {
         override fun run() {
             updateDashboard()
-            uiHandler.postDelayed(this, 500)
+            if (::motionWaveformView.isInitialized) {
+                motionWaveformView.pushSample(
+                    FallDetectionService.latestAccMag,
+                    FallDetectionService.latestGyroMag
+                )
+            }
+            uiHandler.postDelayed(this, 120) // ~8-10 Hz fluid animation tick
         }
     }
 
@@ -171,16 +182,16 @@ class MainActivity : Activity() {
         // ==========================================
         val tabRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#1E293B"))
-            setPadding(6, 6, 6, 6)
+            setBackgroundResource(R.drawable.bg_tab_container)
+            setPadding(8, 8, 8, 8)
         }
 
         tabMainBtn = Button(this).apply {
-            text = "🏠 MAIN (SMART LOCATION)"
+            text = "🏠 SMART LOCATION"
             textSize = 12f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#2563EB"))
+            setBackgroundResource(R.drawable.bg_tab_active)
             setOnClickListener { switchTab("main") }
         }
         val tabParams1 = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -189,7 +200,7 @@ class MainActivity : Activity() {
         tabRow.addView(tabMainBtn, tabParams1)
 
         tabTestingBtn = Button(this).apply {
-            text = "🧪 TESTING & LAB"
+            text = "🔬 SENSORS & LAB"
             textSize = 12f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor("#94A3B8"))
@@ -283,7 +294,7 @@ class MainActivity : Activity() {
      */
     private fun buildMainTabContent(parent: LinearLayout) {
         val bannerDesc = TextView(this).apply {
-            text = "AUTOMATED LOCATION PROTECTION"
+            text = "🛡️ SMART LOCATION & POWER SAVER"
             textSize = 12f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor("#38BDF8"))
@@ -291,38 +302,62 @@ class MainActivity : Activity() {
         }
         parent.addView(bannerDesc)
 
+        // Radar Hero Status Card
+        val heroCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card_dark)
+            setPadding(24, 20, 24, 20)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+
+        // Concentric animated radar visualizer
+        radarPulseView = com.sehat.fall.ui.view.AnimatedRadarPulseView(this)
+        val radarParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            240
+        ).apply { setMargins(0, 8, 0, 12) }
+        heroCard.addView(radarPulseView, radarParams)
+
         // Geofence Live State Indicator Card
         geoStatusCard = TextView(this).apply {
             text = "CHECKING LOCATION STATUS..."
-            textSize = 15f
+            textSize = 14f
             setTypeface(typeface, Typeface.BOLD)
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#1E293B"))
-            setPadding(24, 20, 24, 20)
+            setBackgroundResource(R.drawable.bg_card_surface)
+            setPadding(24, 16, 24, 16)
         }
-        parent.addView(geoStatusCard)
+        heroCard.addView(geoStatusCard, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
 
         // Toggle Feature Button
         geoToggleBtn = Button(this).apply {
             text = "ENABLE LOCATION AUTO-PROTECTION"
-            textSize = 15f
+            textSize = 14f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#10B981"))
-            setPadding(20, 18, 20, 18)
+            setPadding(20, 16, 20, 16)
             setOnClickListener { toggleLocationProtection() }
         }
         val toggleParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 14, 0, 16) }
-        parent.addView(geoToggleBtn, toggleParams)
+        ).apply { setMargins(0, 14, 0, 0) }
+        heroCard.addView(geoToggleBtn, toggleParams)
+
+        parent.addView(heroCard, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 0, 0, 16) })
 
         // Home Zone Setup Card
         val homeCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#161E2E"))
+            setBackgroundResource(R.drawable.bg_card_surface)
             setPadding(24, 20, 24, 20)
         }
 
@@ -497,49 +532,107 @@ class MainActivity : Activity() {
         ).apply { setMargins(0, 12, 0, 0) }
         parent.addView(warningBanner, warningParams)
 
-        // Metrics Card
-        metricsCard = LinearLayout(this).apply {
+        // 1. Live Animated Circular Probability Gauge Hero Card
+        val gaugeCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#161E2E"))
+            setBackgroundResource(R.drawable.bg_card_dark)
             setPadding(24, 20, 24, 20)
+            gravity = Gravity.CENTER_HORIZONTAL
         }
-        val cardParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 16, 0, 16) }
 
-        accRateText = TextView(this).apply {
-            text = "Accelerometer: 0.0 Hz (Target ~100 Hz)"
-            textSize = 14f
-            setTextColor(Color.parseColor("#E2E8F0"))
-        }
-        metricsCard.addView(accRateText)
-
-        gyroRateText = TextView(this).apply {
-            text = "Gyroscope: 0.0 Hz (Target ~100 Hz)"
-            textSize = 14f
-            setTextColor(Color.parseColor("#E2E8F0"))
-            setPadding(0, 8, 0, 0)
-        }
-        metricsCard.addView(gyroRateText)
-
-        windowRateText = TextView(this).apply {
-            text = "Inference: 0 windows/min (Stride 500ms)"
-            textSize = 14f
-            setTextColor(Color.parseColor("#E2E8F0"))
-            setPadding(0, 8, 0, 0)
-        }
-        metricsCard.addView(windowRateText)
+        probabilityGauge = com.sehat.fall.ui.view.CircularProbabilityGauge(this)
+        val gaugeParams = LinearLayout.LayoutParams(
+            420,
+            420
+        ).apply { setMargins(0, 10, 0, 10) }
+        gaugeCard.addView(probabilityGauge, gaugeParams)
 
         probText = TextView(this).apply {
             text = "Latest Probability: 0.00% (Flag streak: 0/2)"
-            textSize = 14f
-            setTextColor(Color.parseColor("#38BDF8"))
-            setPadding(0, 8, 0, 0)
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 6)
         }
-        metricsCard.addView(probText)
+        gaugeCard.addView(probText)
 
-        parent.addView(metricsCard, cardParams)
+        parent.addView(gaugeCard, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 12, 0, 14) })
+
+        // 2. Real-Time Motion Oscilloscope Waveform Card
+        val waveCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card_surface)
+            setPadding(20, 16, 20, 16)
+        }
+
+        val waveTitle = TextView(this).apply {
+            text = "LIVE MOTION STREAM (|acc| Cyan, |gyro| Amber)"
+            textSize = 12f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(4, 0, 4, 8)
+        }
+        waveCard.addView(waveTitle)
+
+        motionWaveformView = com.sehat.fall.ui.view.MotionWaveformView(this)
+        val waveParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            240
+        ).apply { setMargins(0, 0, 0, 10) }
+        waveCard.addView(motionWaveformView, waveParams)
+
+        // Sensor Health Chips Row
+        val chipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 6, 0, 4)
+        }
+
+        accRateText = TextView(this).apply {
+            text = "⚡ Acc: 0.0 Hz"
+            textSize = 12f
+            setTextColor(Color.parseColor("#E2E8F0"))
+            setBackgroundResource(R.drawable.bg_pill_badge)
+            setPadding(16, 8, 16, 8)
+            gravity = Gravity.CENTER
+        }
+        chipRow.addView(accRateText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            setMargins(0, 0, 4, 0)
+        })
+
+        gyroRateText = TextView(this).apply {
+            text = "🔄 Gyro: 0.0 Hz"
+            textSize = 12f
+            setTextColor(Color.parseColor("#E2E8F0"))
+            setBackgroundResource(R.drawable.bg_pill_badge)
+            setPadding(16, 8, 16, 8)
+            gravity = Gravity.CENTER
+        }
+        chipRow.addView(gyroRateText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            setMargins(4, 0, 4, 0)
+        })
+
+        windowRateText = TextView(this).apply {
+            text = "🧠 Infer: 0/min"
+            textSize = 12f
+            setTextColor(Color.parseColor("#E2E8F0"))
+            setBackgroundResource(R.drawable.bg_pill_badge)
+            setPadding(16, 8, 16, 8)
+            gravity = Gravity.CENTER
+        }
+        chipRow.addView(windowRateText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            setMargins(4, 0, 0, 0)
+        })
+
+        waveCard.addView(chipRow)
+
+        metricsCard = waveCard
+        parent.addView(waveCard, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 0, 0, 16) })
 
         // Manual Toggle Monitoring Button
         toggleServiceBtn = Button(this).apply {
@@ -610,7 +703,7 @@ class MainActivity : Activity() {
         settings.activeAppTab = targetTab
 
         if (targetTab == "main") {
-            tabMainBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+            tabMainBtn.setBackgroundResource(R.drawable.bg_tab_active)
             tabMainBtn.setTextColor(Color.WHITE)
             tabTestingBtn.setBackgroundColor(Color.TRANSPARENT)
             tabTestingBtn.setTextColor(Color.parseColor("#94A3B8"))
@@ -618,7 +711,7 @@ class MainActivity : Activity() {
             mainTabContainer.visibility = View.VISIBLE
             testingTabContainer.visibility = View.GONE
         } else {
-            tabTestingBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+            tabTestingBtn.setBackgroundResource(R.drawable.bg_tab_active)
             tabTestingBtn.setTextColor(Color.WHITE)
             tabMainBtn.setBackgroundColor(Color.TRANSPARENT)
             tabMainBtn.setTextColor(Color.parseColor("#94A3B8"))
@@ -823,6 +916,14 @@ class MainActivity : Activity() {
         val lastLoc = GeofenceMonitoringService.lastLocation ?: LocationFenceManager.getBestLastKnownLocation(this)
         val eval = LocationFenceManager.evaluate(lastLoc)
 
+        if (::radarPulseView.isInitialized) {
+            when (eval.state) {
+                LocationFenceManager.FenceState.INSIDE_HOME -> radarPulseView.setMode(com.sehat.fall.ui.view.AnimatedRadarPulseView.PulseMode.SAFE_HOME)
+                LocationFenceManager.FenceState.OUTSIDE_HOME -> radarPulseView.setMode(com.sehat.fall.ui.view.AnimatedRadarPulseView.PulseMode.OUTSIDE_ACTIVE)
+                else -> radarPulseView.setMode(com.sehat.fall.ui.view.AnimatedRadarPulseView.PulseMode.SEARCHING_GPS)
+            }
+        }
+
         when (eval.state) {
             LocationFenceManager.FenceState.INSIDE_HOME -> {
                 geoStatusCard.text = "🏠 AT HOME — SAFE ZONE ACTIVE\nMotion sensors IDLE (Battery consumption minimized)\nAuto-starts whenever you step outside."
@@ -886,10 +987,18 @@ class MainActivity : Activity() {
             toggleServiceBtn.setBackgroundColor(Color.parseColor("#10B981"))
         }
 
-        accRateText.text = "Accelerometer: ${"%.1f".format(FallDetectionService.currentAccRateHz)} Hz (Target ~100 Hz)"
-        gyroRateText.text = "Gyroscope: ${"%.1f".format(FallDetectionService.currentGyroRateHz)} Hz (Target ~100 Hz)"
-        windowRateText.text = "Inference: ${"%.1f".format(FallDetectionService.windowsPerMinute)} windows/min"
+        accRateText.text = "⚡ Acc: ${"%.1f".format(FallDetectionService.currentAccRateHz)} Hz"
+        gyroRateText.text = "🔄 Gyro: ${"%.1f".format(FallDetectionService.currentGyroRateHz)} Hz"
+        windowRateText.text = "🧠 Infer: ${"%.0f".format(FallDetectionService.windowsPerMinute)}/min"
         probText.text = "Latest Probability: ${"%.2f".format(FallDetectionService.latestProbability * 100)}% (Streak: ${FallDetectionService.consecutiveFlagged}/${settings.persist})"
+
+        if (::probabilityGauge.isInitialized) {
+            probabilityGauge.setProbability(
+                FallDetectionService.latestProbability,
+                FallDetectionService.consecutiveFlagged,
+                settings.persist
+            )
+        }
 
         if (running && FallDetectionService.hasLowRateWarning) {
             warningBanner.visibility = View.VISIBLE

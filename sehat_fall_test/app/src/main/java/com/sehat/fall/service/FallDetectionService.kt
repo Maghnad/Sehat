@@ -61,6 +61,14 @@ class FallDetectionService : Service(), SensorEventListener {
         @Volatile
         var consecutiveFlagged = 0
             private set
+
+        @Volatile
+        var latestAccMag = 9.8f
+            private set
+
+        @Volatile
+        var latestGyroMag = 0f
+            private set
     }
 
     private var sensorManager: SensorManager? = null
@@ -233,20 +241,28 @@ class FallDetectionService : Service(), SensorEventListener {
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> {
                 accEventCount++
+                val x = event.values[0]
+                val y = event.values[1]
+                val z = event.values[2]
+                latestAccMag = kotlin.math.sqrt(x * x + y * y + z * z)
                 fallDetector?.onAccelerometerEvent(
                     timestampNs = event.timestamp,
-                    x = event.values[0],
-                    y = event.values[1],
-                    z = event.values[2]
+                    x = x,
+                    y = y,
+                    z = z
                 )
             }
             Sensor.TYPE_GYROSCOPE -> {
                 gyroEventCount++
+                val x = event.values[0]
+                val y = event.values[1]
+                val z = event.values[2]
+                latestGyroMag = kotlin.math.sqrt(x * x + y * y + z * z)
                 fallDetector?.onGyroscopeEvent(
                     timestampNs = event.timestamp,
-                    x = event.values[0],
-                    y = event.values[1],
-                    z = event.values[2]
+                    x = x,
+                    y = y,
+                    z = z
                 )
             }
         }

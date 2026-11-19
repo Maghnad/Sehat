@@ -109,29 +109,19 @@ class GeofenceMonitoringService : Service(), LocationListener {
         try {
             val lm = locationManager ?: return
 
-            // 1. Grab last known location immediately
-            val lastGps = if (hasFine) lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
-            val lastNet = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            val bestLast = lastGps ?: lastNet
+            // 1. Grab last known location immediately across all providers
+            val bestLast = LocationFenceManager.getBestLastKnownLocation(this)
             bestLast?.let { onLocationChanged(it) }
 
-            // 2. Register GPS and Network providers for periodic updates
-            if (hasFine && lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                lm.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    MIN_TIME_MS,
-                    MIN_DISTANCE_M,
-                    this
-                )
-            }
-
-            if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                lm.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    MIN_TIME_MS,
-                    MIN_DISTANCE_M,
-                    this
-                )
+            // 2. Register all available providers for periodic updates
+            for (p in lm.allProviders) {
+                try {
+                    if (p == LocationManager.PASSIVE_PROVIDER) {
+                        lm.requestLocationUpdates(p, MIN_TIME_MS, 0f, this)
+                    } else if (lm.isProviderEnabled(p)) {
+                        lm.requestLocationUpdates(p, MIN_TIME_MS, MIN_DISTANCE_M, this)
+                    }
+                } catch (e: Exception) {}
             }
         } catch (e: Exception) {
             e.printStackTrace()

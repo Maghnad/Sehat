@@ -654,8 +654,6 @@ class MainActivity : Activity() {
     private var isAcquiringGps = false
 
     private fun setCurrentLocationAsHome() {
-        if (isAcquiringGps) return
-
         val lm = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return
         val hasFine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val hasCoarse = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -666,21 +664,31 @@ class MainActivity : Activity() {
             return
         }
 
-        // 1. Try immediate cached fixes across providers
-        val lastGps = if (hasFine) lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
-        val lastNet = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        val lastPassive = lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
-        val bestCached = lastGps ?: lastNet ?: lastPassive
+        val isLocEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lm.isLocationEnabled
+        } else {
+            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
 
-        // If cached fix is fresh (under 60 seconds old), apply immediately
-        if (bestCached != null && (System.currentTimeMillis() - bestCached.time) < 60_000L) {
-            applyHomeLocationFix(bestCached)
+        if (!isLocEnabled) {
+            Toast.makeText(this, "⚠️ Device Location is OFF. Please turn ON Location in Settings.", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            } catch (e: Exception) {}
             return
         }
 
-        // 2. Actively acquire live GPS fix
+        // 1. Check if we have ANY last known physical fix across all providers (GPS, Network, Passive, Fused)
+        val bestCached = LocationFenceManager.getBestLastKnownLocation(this)
+        if (bestCached != null) {
+            // Apply immediately so user is never stuck waiting or blocked
+            applyHomeLocationFix(bestCached)
+        }
+
+        // 2. Concurrently poll fresh high-accuracy satellite/network fix in background
+        if (isAcquiringGps) return
         isAcquiringGps = true
-        setHomeBtn.text = "📍 ACQUIRING GPS FIX (HOLD STILL)..."
+        setHomeBtn.text = if (bestCached != null) "📍 REFINING GPS FIX..." else "📍 ACQUIRING GPS FIX..."
         setHomeBtn.setBackgroundColor(Color.parseColor("#D97706")) // Amber warning
 
         val timeoutRunnable = Runnable {
@@ -689,19 +697,38 @@ class MainActivity : Activity() {
                 setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
                 setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
 
-                if (bestCached != null) {
-                    applyHomeLocationFix(bestCached)
-                    Toast.makeText(this, "Applied latest known location fix", Toast.LENGTH_SHORT).show()
-                } else {
+                if (bestCached == null) {
                     Toast.makeText(
                         this,
-                        "GPS acquisition timed out. Please ensure Location is ON, or tap 'SET HOME PIN ON MAP'.",
+                        "GPS satellite lock taking longer indoors. You can use 'SET HOME PIN ON MAP' to drop a pin directly on your building.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
             }
         }
-        uiHandler.postDelayed(timeoutRunnable, 12_000L)
+        uiHandler.postDelayed(timeoutRunnable, 8_000L)
+
+        // Modern Android 11+ (API 30+) getCurrentLocation
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val provider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && lm.allProviders.contains(LocationManager.FUSED_PROVIDER)) {
+                    LocationManager.FUSED_PROVIDER
+                } else if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    LocationManager.NETWORK_PROVIDER
+                } else {
+                    LocationManager.GPS_PROVIDER
+                }
+                lm.getCurrentLocation(provider, null, ContextCompat.getMainExecutor(this)) { loc ->
+                    if (loc != null && isAcquiringGps) {
+                        isAcquiringGps = false
+                        uiHandler.removeCallbacks(timeoutRunnable)
+                        setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
+                        setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+                        applyHomeLocationFix(loc)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
 
         val singleListener = object : LocationListener {
             override fun onLocationChanged(loc: Location) {
@@ -721,19 +748,20 @@ class MainActivity : Activity() {
         }
 
         try {
-            if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0L, 0f, singleListener)
-            }
-            if (hasFine && lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0f, singleListener)
+            for (p in lm.allProviders) {
+                if (lm.isProviderEnabled(p)) {
+                    lm.requestLocationUpdates(p, 0L, 0f, singleListener)
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            isAcquiringGps = false
-            uiHandler.removeCallbacks(timeoutRunnable)
-            setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
-            setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
-            Toast.makeText(this, "Location listener error: ${e.message}", Toast.LENGTH_SHORT).show()
+            if (bestCached == null) {
+                isAcquiringGps = false
+                uiHandler.removeCallbacks(timeoutRunnable)
+                setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
+                setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+                Toast.makeText(this, "Location error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -791,8 +819,8 @@ class MainActivity : Activity() {
         }
         homeRadiusText.text = "Safe Zone Radius: ${r.toInt()} meters"
 
-        // Evaluate live geofence state
-        val lastLoc = GeofenceMonitoringService.lastLocation
+        // Evaluate live geofence state (prefer live service fix, fallback to newest cached fix)
+        val lastLoc = GeofenceMonitoringService.lastLocation ?: LocationFenceManager.getBestLastKnownLocation(this)
         val eval = LocationFenceManager.evaluate(lastLoc)
 
         when (eval.state) {
@@ -807,14 +835,20 @@ class MainActivity : Activity() {
                 liveDistanceText.text = "Distance to Home: ${eval.distanceToHomeMeters.toInt()}m (Outside ${r.toInt()}m safe zone)"
             }
             LocationFenceManager.FenceState.HOME_NOT_SET -> {
-                geoStatusCard.text = "📍 HOME LOCATION NOT SET\nTap 'Set Current Location as Home' to initialize your safe zone."
+                geoStatusCard.text = "📍 HOME LOCATION NOT SET\nTap 'Set Home Pin on Map' or 'Set Current Location' to initialize."
                 geoStatusCard.setBackgroundColor(Color.parseColor("#1E293B"))
                 liveDistanceText.text = "Distance to Home: N/A"
             }
             LocationFenceManager.FenceState.NO_LOCATION -> {
-                geoStatusCard.text = "📍 WAITING FOR LOCATION FIX...\nEnsure GPS is turned ON."
-                geoStatusCard.setBackgroundColor(Color.parseColor("#374151"))
-                liveDistanceText.text = "Distance to Home: Locating..."
+                if (settings.isHomeConfigured) {
+                    geoStatusCard.text = "🏠 SAFE ZONE CONFIGURED (${r.toInt()}m radius)\nLat: ${"%.5f".format(settings.homeLatitude)}, Lon: ${"%.5f".format(settings.homeLongitude)}\nWaiting for GPS/Network fix to compute live distance."
+                    geoStatusCard.setBackgroundColor(Color.parseColor("#1E3A8A"))
+                    liveDistanceText.text = "Distance to Home: Locating..."
+                } else {
+                    geoStatusCard.text = "📍 WAITING FOR LOCATION FIX...\nTap 'Set Home Pin on Map' to mark your home."
+                    geoStatusCard.setBackgroundColor(Color.parseColor("#374151"))
+                    liveDistanceText.text = "Distance to Home: Locating..."
+                }
             }
         }
 

@@ -1,6 +1,8 @@
 package com.sehat.fall.location
 
+import android.content.Context
 import android.location.Location
+import android.location.LocationManager
 import com.sehat.fall.SehatApp
 
 object LocationFenceManager {
@@ -82,5 +84,29 @@ object LocationFenceManager {
         if (radius != null) {
             settings.homeRadiusMeters = radius
         }
+    }
+
+    /**
+     * Inspects all available location providers (GPS, Network, Passive, Fused)
+     * and returns the newest physical location recorded on the device.
+     */
+    fun getBestLastKnownLocation(context: Context): Location? {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        var best: Location? = null
+        try {
+            for (provider in lm.allProviders) {
+                try {
+                    val loc = lm.getLastKnownLocation(provider) ?: continue
+                    if (best == null || loc.time > best.time) {
+                        best = loc
+                    }
+                } catch (e: SecurityException) {
+                    // Ignore missing permission on a specific provider
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return best
     }
 }

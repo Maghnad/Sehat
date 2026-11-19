@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
@@ -359,6 +360,22 @@ class MainActivity : Activity() {
         }
         homeCard.addView(setHomeBtn)
 
+        val mapBtn = Button(this).apply {
+            text = "🗺️ SET HOME PIN ON MAP"
+            textSize = 14f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#4338CA")) // Rich Indigo
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, MapPickerActivity::class.java))
+            }
+        }
+        val mapParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 8, 0, 0) }
+        homeCard.addView(mapBtn, mapParams)
+
         // Radius Slider
         homeRadiusText = TextView(this).apply {
             text = "Safe Zone Radius: 100 meters"
@@ -634,7 +651,11 @@ class MainActivity : Activity() {
         updateDashboard()
     }
 
+    private var isAcquiringGps = false
+
     private fun setCurrentLocationAsHome() {
+        if (isAcquiringGps) return
+
         val lm = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return
         val hasFine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val hasCoarse = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -645,26 +666,86 @@ class MainActivity : Activity() {
             return
         }
 
-        try {
-            val lastGps = if (hasFine) lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
-            val lastNet = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            val best = lastGps ?: lastNet
+        // 1. Try immediate cached fixes across providers
+        val lastGps = if (hasFine) lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
+        val lastNet = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        val lastPassive = lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+        val bestCached = lastGps ?: lastNet ?: lastPassive
 
-            if (best != null) {
-                LocationFenceManager.setHomeLocation(best.latitude, best.longitude)
-                Toast.makeText(
-                    this,
-                    "Safe Home Zone saved!\nLat: ${"%.5f".format(best.latitude)}, Lon: ${"%.5f".format(best.longitude)}",
-                    Toast.LENGTH_LONG
-                ).show()
-                updateDashboard()
-            } else {
-                Toast.makeText(this, "Acquiring GPS fix... please try again in 5 seconds outdoors or near window.", Toast.LENGTH_SHORT).show()
+        // If cached fix is fresh (under 60 seconds old), apply immediately
+        if (bestCached != null && (System.currentTimeMillis() - bestCached.time) < 60_000L) {
+            applyHomeLocationFix(bestCached)
+            return
+        }
+
+        // 2. Actively acquire live GPS fix
+        isAcquiringGps = true
+        setHomeBtn.text = "📍 ACQUIRING GPS FIX (HOLD STILL)..."
+        setHomeBtn.setBackgroundColor(Color.parseColor("#D97706")) // Amber warning
+
+        val timeoutRunnable = Runnable {
+            if (isAcquiringGps) {
+                isAcquiringGps = false
+                setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
+                setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+
+                if (bestCached != null) {
+                    applyHomeLocationFix(bestCached)
+                    Toast.makeText(this, "Applied latest known location fix", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(
+                        this,
+                        "GPS acquisition timed out. Please ensure Location is ON, or tap 'SET HOME PIN ON MAP'.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+        uiHandler.postDelayed(timeoutRunnable, 12_000L)
+
+        val singleListener = object : LocationListener {
+            override fun onLocationChanged(loc: Location) {
+                if (isAcquiringGps) {
+                    isAcquiringGps = false
+                    uiHandler.removeCallbacks(timeoutRunnable)
+                    try { lm.removeUpdates(this) } catch (e: Exception) {}
+                    setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
+                    setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+                    applyHomeLocationFix(loc)
+                }
+            }
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+        }
+
+        try {
+            if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0L, 0f, singleListener)
+            }
+            if (hasFine && lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0f, singleListener)
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "Error getting location: ${e.message}", Toast.LENGTH_SHORT).show()
+            isAcquiringGps = false
+            uiHandler.removeCallbacks(timeoutRunnable)
+            setHomeBtn.text = "📍 SET CURRENT LOCATION AS HOME"
+            setHomeBtn.setBackgroundColor(Color.parseColor("#2563EB"))
+            Toast.makeText(this, "Location listener error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun applyHomeLocationFix(loc: Location) {
+        LocationFenceManager.setHomeLocation(loc.latitude, loc.longitude)
+        AlertManager.startPromptVibration(this) // Haptic feedback confirmation
+        Toast.makeText(
+            this,
+            "✅ Safe Home Zone set!\nLat: ${"%.5f".format(loc.latitude)}, Lon: ${"%.5f".format(loc.longitude)}",
+            Toast.LENGTH_LONG
+        ).show()
+        updateDashboard()
     }
 
     private fun toggleMonitoringService() {

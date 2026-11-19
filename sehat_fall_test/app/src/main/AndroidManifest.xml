@@ -22,6 +22,9 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
+    <!-- Internet permission used exclusively for loading map tiles in Map Pin Picker -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Android 11+ (API 30+) package visibility for on-device speech recognition -->
     <queries>
         <intent>
@@ -82,6 +85,12 @@
             android:name=".ui.AboutActivity"
             android:exported="false"
             android:label="About &amp; Privacy"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.MapPickerActivity"
+            android:exported="false"
+            android:label="Set Home Pin on Map"
             android:screenOrientation="portrait" />
 
         <service

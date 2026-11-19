@@ -38,13 +38,10 @@ object AlertManager {
         val voiceSec = settings.voiceListenSeconds
         val confirmSec = settings.confirmSafeSeconds
 
-        // 1. Play brief attention chime (do not drown out microphone during voice command phase)
-        playAttentionChime(context)
-
-        // 2. Start initial prompt vibration
+        // 1. Replaced background music/chime with haptic vibration alert upon fall detection
         startPromptVibration(context)
 
-        // 3. Post full-screen emergency notification and launch AlertActivity
+        // 2. Post full-screen emergency notification and launch AlertActivity
         val alertIntent = Intent(context, AlertActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlertActivity.EXTRA_PROBABILITY, probability)
@@ -150,18 +147,13 @@ object AlertManager {
     }
 
     fun playAttentionChime(context: Context) {
-        try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val r = RingtoneManager.getRingtone(context, uri)
-            r?.play()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        // Replaced audio chime with haptic vibration pattern
+        startPromptVibration(context)
     }
 
     fun startPromptVibration(context: Context) {
         try {
-            val pattern = longArrayOf(0, 300, 150, 300)
+            val pattern = longArrayOf(0, 350, 150, 350)
             val vibrator = getVibrator(context)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
@@ -174,27 +166,11 @@ object AlertManager {
         }
     }
 
+    /**
+     * Replaced background music with intense continuous emergency vibration.
+     */
     fun startAlarm(context: Context) {
-        if (mediaPlayer != null) return
-        try {
-            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(context, alarmUri)
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                isLooping = true
-                prepare()
-                start()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        startVibration(context)
     }
 
     fun startVibration(context: Context) {

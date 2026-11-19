@@ -26,6 +26,10 @@ class SettingsActivity : Activity() {
     private lateinit var confirmSecValueText: TextView
     private lateinit var confirmSecSeekBar: SeekBar
 
+    // Safe Home Zone & Power Saving
+    private lateinit var homeRadiusValueText: TextView
+    private lateinit var homeRadiusSeekBar: SeekBar
+
     // Fall detection parameters
     private lateinit var thresholdValueText: TextView
     private lateinit var thresholdSeekBar: SeekBar
@@ -217,7 +221,49 @@ class SettingsActivity : Activity() {
         addDivider(scrollCol)
 
         // ==========================================
-        // SECTION 3: FALL DETECTION PARAMETERS
+        // SECTION 3: SAFE HOME ZONE (POWER SAVING)
+        // ==========================================
+        val zoneHeader = TextView(this).apply {
+            text = "Safe Home Zone & Battery Saving"
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 8, 0, 4)
+        }
+        scrollCol.addView(zoneHeader)
+
+        homeRadiusValueText = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        scrollCol.addView(homeRadiusValueText)
+
+        val zoneDesc = TextView(this).apply {
+            text = "Inside this radius from your house, fall monitoring sensors pause to maximize battery life. Outside, monitoring activates automatically."
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, 2, 0, 8)
+        }
+        scrollCol.addView(zoneDesc)
+
+        homeRadiusSeekBar = SeekBar(this).apply {
+            max = 18 // 50m to 500m (step 25m)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val r = 50 + progress * 25
+                    homeRadiusValueText.text = "Safe Home Radius: $r meters"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        scrollCol.addView(homeRadiusSeekBar)
+
+        addDivider(scrollCol)
+
+        // ==========================================
+        // SECTION 4: FALL DETECTION PARAMETERS
         // ==========================================
         val modelHeader = TextView(this).apply {
             text = "Fall Model Sensitivity"
@@ -357,6 +403,11 @@ class SettingsActivity : Activity() {
         confirmSecSeekBar.progress = confSec - 10
         confirmSecValueText.text = "Safe Confirmation Window: $confSec seconds"
 
+        val radius = settings.homeRadiusMeters
+        val rProgress = ((radius - 50) / 25).toInt().coerceIn(0, 18)
+        homeRadiusSeekBar.progress = rProgress
+        homeRadiusValueText.text = "Safe Home Radius: ${radius.toInt()} meters"
+
         val thr = settings.threshold
         thresholdSeekBar.progress = (thr * 100).toInt()
         thresholdValueText.text = "Threshold: ${"%.2f".format(thr)}"
@@ -375,6 +426,7 @@ class SettingsActivity : Activity() {
         val phone = relativePhoneEdit.text.toString().trim()
         val voiceSec = voiceSecSeekBar.progress + 5
         val confSec = confirmSecSeekBar.progress + 10
+        val homeRad = (50 + homeRadiusSeekBar.progress * 25).toFloat()
         val thr = (thresholdSeekBar.progress / 100f).coerceIn(0.01f, 0.99f)
         val per = persistSeekBar.progress + 1
         val trace = traceCheckBox.isChecked
@@ -383,6 +435,7 @@ class SettingsActivity : Activity() {
         settings.relativePhoneNumber = phone
         settings.voiceListenSeconds = voiceSec
         settings.confirmSafeSeconds = confSec
+        settings.homeRadiusMeters = homeRad
         settings.threshold = thr
         settings.persist = per
         settings.recordTrace = trace

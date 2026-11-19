@@ -47,6 +47,32 @@ class SettingsManager(context: Context, private val defaultConfig: FallConfig) {
     val isRelativeConfigured: Boolean
         get() = relativePhoneNumber.isNotBlank()
 
+    // ==========================================
+    // Location & Power-Saving Geofence Settings
+    // ==========================================
+    var isLocationMonitoringEnabled: Boolean
+        get() = prefs.getBoolean("is_location_monitoring_enabled", false)
+        set(value) = prefs.edit().putBoolean("is_location_monitoring_enabled", value).apply()
+
+    var homeLatitude: Double
+        get() = prefs.getString("home_latitude", "0.0")?.toDoubleOrNull() ?: 0.0
+        set(value) = prefs.edit().putString("home_latitude", value.toString()).apply()
+
+    var homeLongitude: Double
+        get() = prefs.getString("home_longitude", "0.0")?.toDoubleOrNull() ?: 0.0
+        set(value) = prefs.edit().putString("home_longitude", value.toString()).apply()
+
+    var homeRadiusMeters: Float
+        get() = prefs.getFloat("home_radius_meters", 100.0f)
+        set(value) = prefs.edit().putFloat("home_radius_meters", value.coerceIn(50.0f, 1000.0f)).apply()
+
+    val isHomeConfigured: Boolean
+        get() = homeLatitude != 0.0 || homeLongitude != 0.0
+
+    var activeAppTab: String
+        get() = prefs.getString("active_app_tab", "main") ?: "main"
+        set(value) = prefs.edit().putString("active_app_tab", value).apply()
+
     fun resetToDefaults() {
         prefs.edit()
             .putFloat("threshold", defaultConfig.threshold)

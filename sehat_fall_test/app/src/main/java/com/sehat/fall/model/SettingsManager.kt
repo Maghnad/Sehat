@@ -28,11 +28,32 @@ class SettingsManager(context: Context, private val defaultConfig: FallConfig) {
         get() = prefs.getBoolean("has_consented", false)
         set(value) = prefs.edit().putBoolean("has_consented", value).apply()
 
+    var relativePhoneNumber: String
+        get() = prefs.getString("relative_phone_number", "") ?: ""
+        set(value) = prefs.edit().putString("relative_phone_number", value.trim()).apply()
+
+    var relativeName: String
+        get() = prefs.getString("relative_name", "Emergency Contact") ?: "Emergency Contact"
+        set(value) = prefs.edit().putString("relative_name", value.trim()).apply()
+
+    var voiceListenSeconds: Int
+        get() = prefs.getInt("voice_listen_seconds", 7)
+        set(value) = prefs.edit().putInt("voice_listen_seconds", value.coerceIn(5, 15)).apply()
+
+    var confirmSafeSeconds: Int
+        get() = prefs.getInt("confirm_safe_seconds", 15)
+        set(value) = prefs.edit().putInt("confirm_safe_seconds", value.coerceIn(10, 30)).apply()
+
+    val isRelativeConfigured: Boolean
+        get() = relativePhoneNumber.isNotBlank()
+
     fun resetToDefaults() {
         prefs.edit()
             .putFloat("threshold", defaultConfig.threshold)
             .putInt("persist", defaultConfig.persist)
             .putInt("cancel_window_seconds", 10)
+            .putInt("voice_listen_seconds", 7)
+            .putInt("confirm_safe_seconds", 15)
             .apply()
     }
 }

@@ -32,6 +32,7 @@ class MainActivity : Activity() {
     private val uiHandler = Handler(Looper.getMainLooper())
 
     private lateinit var statusBadge: TextView
+    private lateinit var contactCard: TextView
     private lateinit var metricsCard: LinearLayout
     private lateinit var accRateText: TextView
     private lateinit var gyroRateText: TextView
@@ -72,14 +73,29 @@ class MainActivity : Activity() {
     }
 
     private fun checkPermissionsAndBattery() {
-        // 1. Notification Permission (Android 13+)
+        // Request runtime permissions: Notifications, Audio (Microphone for HELP command), Call Phone, and SMS
+        val neededPerms = mutableListOf<String>()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+                neededPerms.add(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            neededPerms.add(Manifest.permission.RECORD_AUDIO)
+        }
+        if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            neededPerms.add(Manifest.permission.CALL_PHONE)
+        }
+        if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            neededPerms.add(Manifest.permission.SEND_SMS)
+        }
 
-        // 2. Battery Optimization Exemption Prompt
+        if (neededPerms.isNotEmpty()) {
+            requestPermissions(neededPerms.toTypedArray(), 101)
+        }
+
+        // Battery Optimization Exemption Prompt
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
             try {
@@ -132,6 +148,21 @@ class MainActivity : Activity() {
             setPadding(24, 16, 24, 16)
         }
         scrollCol.addView(statusBadge)
+
+        // Emergency Contact Status Card
+        contactCard = TextView(this).apply {
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(20, 14, 20, 14)
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+            }
+        }
+        val contactParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 12, 0, 0) }
+        scrollCol.addView(contactCard, contactParams)
 
         // Low Rate Warning Banner
         warningBanner = TextView(this).apply {
@@ -355,6 +386,16 @@ class MainActivity : Activity() {
             warningBanner.visibility = View.VISIBLE
         } else {
             warningBanner.visibility = View.GONE
+        }
+
+        if (settings.isRelativeConfigured) {
+            contactCard.text = "📞 Emergency Contact: ${settings.relativeName} (${settings.relativePhoneNumber})\nTap to adjust contact or post-fall triage timing."
+            contactCard.setTextColor(Color.parseColor("#A7F3D0"))
+            contactCard.setBackgroundColor(Color.parseColor("#064E3B"))
+        } else {
+            contactCard.text = "⚠️ NO EMERGENCY CONTACT CONFIGURED!\nTap here to set your relative's phone number for auto-call protection."
+            contactCard.setTextColor(Color.parseColor("#FEF08A"))
+            contactCard.setBackgroundColor(Color.parseColor("#78350F"))
         }
     }
 

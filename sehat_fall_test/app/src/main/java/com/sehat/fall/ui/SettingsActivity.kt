@@ -4,6 +4,7 @@ import android.app.Activity
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.text.InputType
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -13,15 +14,23 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.sehat.fall.SehatApp
+import com.sehat.fall.alert.EmergencyCallHelper
 
 class SettingsActivity : Activity() {
 
+    // Emergency Contact fields
+    private lateinit var relativeNameEdit: EditText
+    private lateinit var relativePhoneEdit: EditText
+    private lateinit var voiceSecValueText: TextView
+    private lateinit var voiceSecSeekBar: SeekBar
+    private lateinit var confirmSecValueText: TextView
+    private lateinit var confirmSecSeekBar: SeekBar
+
+    // Fall detection parameters
     private lateinit var thresholdValueText: TextView
     private lateinit var thresholdSeekBar: SeekBar
     private lateinit var persistValueText: TextView
     private lateinit var persistSeekBar: SeekBar
-    private lateinit var cancelSecValueText: TextView
-    private lateinit var cancelSecSeekBar: SeekBar
     private lateinit var traceCheckBox: CheckBox
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,11 +47,11 @@ class SettingsActivity : Activity() {
         }
 
         val header = TextView(this).apply {
-            text = "Detection Settings"
+            text = "Emergency & Detection Settings"
             textSize = 24f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 24)
+            setPadding(0, 0, 0, 20)
         }
         root.addView(header)
 
@@ -50,24 +59,193 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
         }
 
-        // 1. Threshold
+        // ==========================================
+        // SECTION 1: EMERGENCY RELATIVE CONTACT SETUP
+        // ==========================================
+        val contactHeader = TextView(this).apply {
+            text = "Emergency Relative Contact"
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 8, 0, 4)
+        }
+        scrollCol.addView(contactHeader)
+
+        val contactDesc = TextView(this).apply {
+            text = "When a fall is detected, this relative will be called if you say 'HELP' or if you do not confirm safety (assumed unconscious)."
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, 0, 0, 14)
+        }
+        scrollCol.addView(contactDesc)
+
+        // Contact Name
+        val nameLabel = TextView(this).apply {
+            text = "Relative's Name / Relationship:"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        scrollCol.addView(nameLabel)
+
+        relativeNameEdit = EditText(this).apply {
+            hint = "e.g. Mom / Son / Daughter / Relative"
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1E293B"))
+            setPadding(24, 18, 24, 18)
+        }
+        val nameParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 6, 0, 16) }
+        scrollCol.addView(relativeNameEdit, nameParams)
+
+        // Contact Phone Number
+        val phoneLabel = TextView(this).apply {
+            text = "Relative's Phone Number (For Emergency Auto-Call):"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        scrollCol.addView(phoneLabel)
+
+        relativePhoneEdit = EditText(this).apply {
+            hint = "e.g. +1234567890 or 9876543210"
+            inputType = InputType.TYPE_CLASS_PHONE
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1E293B"))
+            setPadding(24, 18, 24, 18)
+        }
+        val phoneParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 6, 0, 16) }
+        scrollCol.addView(relativePhoneEdit, phoneParams)
+
+        // Test Call Button
+        val testCallBtn = Button(this).apply {
+            text = "Test Call Relative"
+            textSize = 13f
+            setBackgroundColor(Color.parseColor("#334155"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            setOnClickListener {
+                val phone = relativePhoneEdit.text.toString().trim()
+                if (phone.isBlank()) {
+                    Toast.makeText(this@SettingsActivity, "Please enter a phone number first", Toast.LENGTH_SHORT).show()
+                } else {
+                    EmergencyCallHelper.makeEmergencyCall(this@SettingsActivity, "Test Call from Settings", 0.0f)
+                }
+            }
+        }
+        scrollCol.addView(testCallBtn)
+
+        addDivider(scrollCol)
+
+        // ==========================================
+        // SECTION 2: VOICE RESPONSE & TRIAGE TIMING
+        // ==========================================
+        val triageHeader = TextView(this).apply {
+            text = "Post-Fall Voice Triage Timing"
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 8, 0, 4)
+        }
+        scrollCol.addView(triageHeader)
+
+        // Voice Listen Timeout (5 - 15 s)
+        voiceSecValueText = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        scrollCol.addView(voiceSecValueText)
+
+        val voiceDesc = TextView(this).apply {
+            text = "Microphone listening window to hear 'HELP' voice command."
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, 2, 0, 8)
+        }
+        scrollCol.addView(voiceDesc)
+
+        voiceSecSeekBar = SeekBar(this).apply {
+            max = 10 // 0->5, 10->15
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val sec = progress + 5
+                    voiceSecValueText.text = "Voice 'HELP' Listening Window: $sec seconds"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        scrollCol.addView(voiceSecSeekBar)
+
+        // Safe Confirmation Window (10 - 30 s)
+        confirmSecValueText = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, 16, 0, 0)
+        }
+        scrollCol.addView(confirmSecValueText)
+
+        val confirmDesc = TextView(this).apply {
+            text = "Countdown duration for 'PLEASE CONFIRM THAT YOU ARE SAFE' alert before user is assumed unconscious and called automatically."
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, 2, 0, 8)
+        }
+        scrollCol.addView(confirmDesc)
+
+        confirmSecSeekBar = SeekBar(this).apply {
+            max = 20 // 0->10, 20->30
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val sec = progress + 10
+                    confirmSecValueText.text = "Safe Confirmation Window: $sec seconds"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        scrollCol.addView(confirmSecSeekBar)
+
+        addDivider(scrollCol)
+
+        // ==========================================
+        // SECTION 3: FALL DETECTION PARAMETERS
+        // ==========================================
+        val modelHeader = TextView(this).apply {
+            text = "Fall Model Sensitivity"
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 8, 0, 4)
+        }
+        scrollCol.addView(modelHeader)
+
+        // Threshold
         thresholdValueText = TextView(this).apply {
-            textSize = 16f
+            textSize = 15f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
         }
         scrollCol.addView(thresholdValueText)
 
         val thresholdDesc = TextView(this).apply {
-            text = "Fall probability threshold above which a window is flagged. Default loaded from fall_config.json."
+            text = "Fall probability threshold above which a window is flagged."
             textSize = 13f
             setTextColor(Color.parseColor("#94A3B8"))
-            setPadding(0, 4, 0, 8)
+            setPadding(0, 2, 0, 8)
         }
         scrollCol.addView(thresholdDesc)
 
         thresholdSeekBar = SeekBar(this).apply {
-            max = 100 // 0.00 to 1.00
+            max = 100
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val value = (progress / 100f).coerceIn(0.01f, 0.99f)
@@ -79,26 +257,25 @@ class SettingsActivity : Activity() {
         }
         scrollCol.addView(thresholdSeekBar)
 
-        addDivider(scrollCol)
-
-        // 2. Persist
+        // Persist
         persistValueText = TextView(this).apply {
-            textSize = 16f
+            textSize = 15f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, 16, 0, 0)
         }
         scrollCol.addView(persistValueText)
 
         val persistDesc = TextView(this).apply {
-            text = "Consecutive flagged windows (1 to 10) required to fire an alert. Prevents false triggers."
+            text = "Consecutive flagged windows required to fire an alert (suppresses motion false alarms)."
             textSize = 13f
             setTextColor(Color.parseColor("#94A3B8"))
-            setPadding(0, 4, 0, 8)
+            setPadding(0, 2, 0, 8)
         }
         scrollCol.addView(persistDesc)
 
         persistSeekBar = SeekBar(this).apply {
-            max = 9 // 0->1, 1->2, ..., 9->10
+            max = 9
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val p = progress + 1
@@ -112,73 +289,42 @@ class SettingsActivity : Activity() {
 
         addDivider(scrollCol)
 
-        // 3. Cancel Window Duration
-        cancelSecValueText = TextView(this).apply {
-            textSize = 16f
-            setTextColor(Color.WHITE)
-            setTypeface(typeface, Typeface.BOLD)
-        }
-        scrollCol.addView(cancelSecValueText)
-
-        val cancelDesc = TextView(this).apply {
-            text = "Countdown duration (5 to 10 seconds) on alert screen before escalating locally."
-            textSize = 13f
-            setTextColor(Color.parseColor("#94A3B8"))
-            setPadding(0, 4, 0, 8)
-        }
-        scrollCol.addView(cancelDesc)
-
-        cancelSecSeekBar = SeekBar(this).apply {
-            max = 5 // 0->5, 1->6, ..., 5->10
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val sec = progress + 5
-                    cancelSecValueText.text = "Cancel Window: $sec seconds"
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
-        }
-        scrollCol.addView(cancelSecSeekBar)
-
-        addDivider(scrollCol)
-
-        // 4. Record Trace Switch
+        // Trace
         traceCheckBox = CheckBox(this).apply {
-            text = "Record Trace (Save window evaluations to trace.csv)"
-            textSize = 15f
+            text = "Record Trace to trace.csv (Offline Research Analysis)"
+            textSize = 14f
             setTextColor(Color.WHITE)
-            setPadding(8, 16, 8, 16)
+            setPadding(8, 12, 8, 16)
         }
         scrollCol.addView(traceCheckBox)
 
-        val traceDesc = TextView(this).apply {
-            text = "Logs every evaluated 2-second window (timestamp, probability, flagged) for offline analysis."
-            textSize = 13f
-            setTextColor(Color.parseColor("#94A3B8"))
-            setPadding(0, 0, 0, 32)
-        }
-        scrollCol.addView(traceDesc)
-
         // Save & Reset Buttons
         val saveBtn = Button(this).apply {
-            text = "Save Settings"
+            text = "SAVE ALL SETTINGS"
+            textSize = 16f
+            setTypeface(typeface, Typeface.BOLD)
             setBackgroundColor(Color.parseColor("#2563EB"))
             setTextColor(Color.WHITE)
+            setPadding(0, 20, 0, 20)
             setOnClickListener { saveSettings() }
         }
-        scrollCol.addView(saveBtn)
+        val saveParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 16, 0, 0) }
+        scrollCol.addView(saveBtn, saveParams)
 
         val resetBtn = Button(this).apply {
-            text = "Reset to Defaults from fall_config.json"
+            text = "Reset to Defaults"
             setBackgroundColor(Color.parseColor("#334155"))
             setTextColor(Color.WHITE)
             setOnClickListener { resetSettings() }
         }
-        scrollCol.addView(resetBtn, LinearLayout.LayoutParams(
+        val resetParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 16, 0, 0) })
+        ).apply { setMargins(0, 12, 0, 24) }
+        scrollCol.addView(resetBtn, resetParams)
 
         val scroll = ScrollView(this).apply { addView(scrollCol) }
         root.addView(scroll)
@@ -200,6 +346,17 @@ class SettingsActivity : Activity() {
     private fun loadSettings() {
         val settings = SehatApp.instance.settingsManager
 
+        relativeNameEdit.setText(settings.relativeName)
+        relativePhoneEdit.setText(settings.relativePhoneNumber)
+
+        val voiceSec = settings.voiceListenSeconds.coerceIn(5, 15)
+        voiceSecSeekBar.progress = voiceSec - 5
+        voiceSecValueText.text = "Voice 'HELP' Listening Window: $voiceSec seconds"
+
+        val confSec = settings.confirmSafeSeconds.coerceIn(10, 30)
+        confirmSecSeekBar.progress = confSec - 10
+        confirmSecValueText.text = "Safe Confirmation Window: $confSec seconds"
+
         val thr = settings.threshold
         thresholdSeekBar.progress = (thr * 100).toInt()
         thresholdValueText.text = "Threshold: ${"%.2f".format(thr)}"
@@ -208,23 +365,26 @@ class SettingsActivity : Activity() {
         persistSeekBar.progress = per - 1
         persistValueText.text = "Persist: $per consecutive windows"
 
-        val sec = settings.cancelWindowSeconds
-        cancelSecSeekBar.progress = sec - 5
-        cancelSecValueText.text = "Cancel Window: $sec seconds"
-
         traceCheckBox.isChecked = settings.recordTrace
     }
 
     private fun saveSettings() {
         val settings = SehatApp.instance.settingsManager
+
+        val name = relativeNameEdit.text.toString().trim()
+        val phone = relativePhoneEdit.text.toString().trim()
+        val voiceSec = voiceSecSeekBar.progress + 5
+        val confSec = confirmSecSeekBar.progress + 10
         val thr = (thresholdSeekBar.progress / 100f).coerceIn(0.01f, 0.99f)
         val per = persistSeekBar.progress + 1
-        val sec = cancelSecSeekBar.progress + 5
         val trace = traceCheckBox.isChecked
 
+        settings.relativeName = if (name.isBlank()) "Emergency Contact" else name
+        settings.relativePhoneNumber = phone
+        settings.voiceListenSeconds = voiceSec
+        settings.confirmSafeSeconds = confSec
         settings.threshold = thr
         settings.persist = per
-        settings.cancelWindowSeconds = sec
         settings.recordTrace = trace
         SehatApp.instance.traceRepo.setEnabled(trace)
 
@@ -236,6 +396,6 @@ class SettingsActivity : Activity() {
         val settings = SehatApp.instance.settingsManager
         settings.resetToDefaults()
         loadSettings()
-        Toast.makeText(this, "Reset to fall_config.json defaults", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Reset to defaults", Toast.LENGTH_SHORT).show()
     }
 }

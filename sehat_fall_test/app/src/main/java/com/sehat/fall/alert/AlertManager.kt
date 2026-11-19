@@ -35,19 +35,21 @@ object AlertManager {
         isAlertActive = true
 
         val settings = SehatApp.instance.settingsManager
-        val cancelWindowSec = settings.cancelWindowSeconds
+        val voiceSec = settings.voiceListenSeconds
+        val confirmSec = settings.confirmSafeSeconds
 
-        // 1. Play loud alarm on STREAM_ALARM
-        startAlarm(context)
+        // 1. Play brief attention chime (do not drown out microphone during voice command phase)
+        playAttentionChime(context)
 
-        // 2. Start vibration pattern
-        startVibration(context)
+        // 2. Start initial prompt vibration
+        startPromptVibration(context)
 
         // 3. Post full-screen emergency notification and launch AlertActivity
         val alertIntent = Intent(context, AlertActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlertActivity.EXTRA_PROBABILITY, probability)
-            putExtra(AlertActivity.EXTRA_COUNTDOWN_SECONDS, cancelWindowSec)
+            putExtra(AlertActivity.EXTRA_VOICE_SECONDS, voiceSec)
+            putExtra(AlertActivity.EXTRA_CONFIRM_SECONDS, confirmSec)
         }
 
         ensureNotificationChannel(context)
@@ -62,7 +64,7 @@ object AlertManager {
         val notification = NotificationCompat.Builder(context, EMERGENCY_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle("SEHAT-ERS: Fall Detected!")
-            .setContentText("Tap 'I'M OK' to cancel before escalation countdown ends.")
+            .setContentText("Listening for 'HELP' voice command or tap screen.")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -147,7 +149,33 @@ object AlertManager {
         */
     }
 
-    private fun startAlarm(context: Context) {
+    fun playAttentionChime(context: Context) {
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val r = RingtoneManager.getRingtone(context, uri)
+            r?.play()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun startPromptVibration(context: Context) {
+        try {
+            val pattern = longArrayOf(0, 300, 150, 300)
+            val vibrator = getVibrator(context)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, -1)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun startAlarm(context: Context) {
+        if (mediaPlayer != null) return
         try {
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
@@ -169,25 +197,29 @@ object AlertManager {
         }
     }
 
-    private fun startVibration(context: Context) {
+    fun startVibration(context: Context) {
         try {
             val pattern = longArrayOf(0, 500, 200, 500, 200, 500, 500)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                vibrator = vm?.defaultVibrator ?: (context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator)
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            }
-
+            val vib = getVibrator(context)
+            vibrator = vib
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+                vib?.vibrate(VibrationEffect.createWaveform(pattern, 0))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(pattern, 0)
+                vib?.vibrate(pattern, 0)
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun getVibrator(context: Context): Vibrator? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vm?.defaultVibrator ?: (context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
         }
     }
 

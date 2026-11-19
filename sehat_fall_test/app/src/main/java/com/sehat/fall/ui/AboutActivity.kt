@@ -66,6 +66,16 @@ class AboutActivity : Activity() {
             "• Uses gravity-aligned rotational invariance so pocket orientation does not bias detection."
         )
 
+        // 4. Post-Fall Emergency Voice Triage
+        addSectionHeader(scrollCol, "Post-Fall Voice Triage & Emergency Calling")
+        addSectionBody(
+            scrollCol,
+            "• Microphone Activation: Upon detecting a fall, the device opens the microphone to listen for the spoken voice command 'HELP'.\n" +
+            "• Immediate Calling on 'HELP': If the device hears 'HELP', it immediately places a phone call to your saved relative's emergency number.\n" +
+            "• Voice Prompt: If 'HELP' is not heard, the phone speaks aloud: 'PLEASE CONFIRM THAT YOU ARE SAFE'.\n" +
+            "• Unconscious Detection: If the user does not tap the confirmation button within the countdown, the device assumes the user may be unconscious and initiates an automatic emergency call to the relative."
+        )
+
         val ackBtn = Button(this).apply {
             text = "I Understand & Accept"
             setBackgroundColor(Color.parseColor("#2563EB"))
@@ -74,6 +84,9 @@ class AboutActivity : Activity() {
             setTypeface(typeface, Typeface.BOLD)
             setOnClickListener {
                 SehatApp.instance.settingsManager.hasConsented = true
+                if (!SehatApp.instance.settingsManager.isRelativeConfigured) {
+                    startActivity(android.content.Intent(this@AboutActivity, SettingsActivity::class.java))
+                }
                 finish()
             }
         }

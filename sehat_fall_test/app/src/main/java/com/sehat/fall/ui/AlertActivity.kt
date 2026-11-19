@@ -1,39 +1,70 @@
 package com.sehat.fall.ui
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.sehat.fall.R
+import com.sehat.fall.SehatApp
 import com.sehat.fall.alert.AlertManager
+import com.sehat.fall.alert.EmergencyCallHelper
+import com.sehat.fall.alert.VoiceAlertPrompt
+import com.sehat.fall.alert.VoiceCommandListener
 
 class AlertActivity : Activity() {
 
     companion object {
         const val EXTRA_PROBABILITY = "extra_probability"
-        const val EXTRA_COUNTDOWN_SECONDS = "extra_countdown_seconds"
+        const val EXTRA_VOICE_SECONDS = "extra_voice_seconds"
+        const val EXTRA_CONFIRM_SECONDS = "extra_confirm_seconds"
     }
 
-    private var countDownTimer: CountDownTimer? = null
-    private var probability: Float = 1.0f
-    private var countdownSeconds: Int = 10
-    private var isResolved = false
+    private enum class AlertPhase {
+        LISTENING_FOR_HELP,
+        AWAITING_SAFE_CONFIRMATION,
+        ESCALATED_CALLING,
+        RESOLVED
+    }
 
+    private var currentPhase = AlertPhase.LISTENING_FOR_HELP
+    private var probability: Float = 1.0f
+    private var voiceSeconds: Int = 7
+    private var confirmSeconds: Int = 15
+
+    private var activeTimer: CountDownTimer? = null
+    private var voiceListener: VoiceCommandListener? = null
+    private var voiceAlertPrompt: VoiceAlertPrompt? = null
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // UI elements
+    private lateinit var rootLayout: LinearLayout
+    private lateinit var phaseBadge: TextView
+    private lateinit var titleTextView: TextView
+    private lateinit var promptTextView: TextView
     private lateinit var timerTextView: TextView
-    private lateinit var statusTextView: TextView
-    private lateinit var okButton: Button
+    private lateinit var substatusTextView: TextView
+    private lateinit var actionButtonPrimary: Button
+    private lateinit var actionButtonSecondary: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Ensure activity wakes up device and displays over keyguard
+        // Wake screen and show over lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -47,81 +78,166 @@ class AlertActivity : Activity() {
         )
 
         probability = intent.getFloatExtra(EXTRA_PROBABILITY, 1.0f)
-        countdownSeconds = intent.getIntExtra(EXTRA_COUNTDOWN_SECONDS, 10).coerceIn(5, 10)
+        voiceSeconds = intent.getIntExtra(EXTRA_VOICE_SECONDS, 7).coerceIn(5, 15)
+        confirmSeconds = intent.getIntExtra(EXTRA_CONFIRM_SECONDS, 15).coerceIn(10, 30)
+
+        voiceAlertPrompt = VoiceAlertPrompt(this)
 
         buildLayout()
-        startCountdown()
+        startPhase1ListeningForHelp()
     }
 
     private fun buildLayout() {
-        val root = LinearLayout(this).apply {
+        rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setBackgroundColor(Color.parseColor("#450A0A")) // Deep crimson alarm background
-            setPadding(48, 64, 48, 64)
+            setPadding(40, 48, 40, 48)
         }
 
-        val titleView = TextView(this).apply {
+        phaseBadge = TextView(this).apply {
+            text = "PHASE 1: VOICE COMMAND DETECTION"
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#FEF08A"))
+            setBackgroundColor(Color.parseColor("#78350F"))
+            gravity = Gravity.CENTER
+            setPadding(24, 10, 24, 10)
+        }
+        rootLayout.addView(phaseBadge)
+
+        titleTextView = TextView(this).apply {
             text = getString(R.string.fall_detected_title)
-            textSize = 34f
+            textSize = 32f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
+            setPadding(0, 16, 0, 4)
         }
-        root.addView(titleView)
+        rootLayout.addView(titleTextView)
 
         val probView = TextView(this).apply {
             text = "Confidence: ${"%.1f".format(probability * 100)}%"
-            textSize = 18f
+            textSize = 15f
             setTextColor(Color.parseColor("#FECACA"))
             gravity = Gravity.CENTER
-            setPadding(0, 16, 0, 32)
+            setPadding(0, 0, 0, 16)
         }
-        root.addView(probView)
+        rootLayout.addView(probView)
+
+        promptTextView = TextView(this).apply {
+            text = "🎤 LISTENING FOR VOICE COMMAND 'HELP'..."
+            textSize = 20f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            gravity = Gravity.CENTER
+            setPadding(0, 12, 0, 12)
+        }
+        rootLayout.addView(promptTextView)
 
         timerTextView = TextView(this).apply {
-            text = "$countdownSeconds"
-            textSize = 96f
+            text = "$voiceSeconds"
+            textSize = 80f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(0, 24, 0, 24)
+            setPadding(0, 8, 0, 8)
         }
-        root.addView(timerTextView)
+        rootLayout.addView(timerTextView)
 
-        statusTextView = TextView(this).apply {
-            text = "Escalating alert in seconds...\nTap button if you are unharmed."
-            textSize = 18f
+        substatusTextView = TextView(this).apply {
+            val relativeName = SehatApp.instance.settingsManager.relativeName
+            text = "Say 'HELP' loudly to immediately call $relativeName.\nOr tap button below if you are unharmed."
+            textSize = 15f
             setTextColor(Color.parseColor("#FCA5A5"))
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 48)
+            setPadding(0, 0, 0, 32)
         }
-        root.addView(statusTextView)
+        rootLayout.addView(substatusTextView)
 
-        okButton = Button(this).apply {
-            text = getString(R.string.im_ok)
-            textSize = 28f
+        // Primary Action Button
+        actionButtonPrimary = Button(this).apply {
+            text = "I'M OK - CANCEL ALERT"
+            textSize = 20f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.BLACK)
-            setBackgroundColor(Color.parseColor("#10B981")) // High-contrast emerald green
-            setPadding(48, 36, 48, 36)
-            setOnClickListener {
-                handleUserOk()
-            }
+            setBackgroundColor(Color.parseColor("#10B981")) // Emerald green
+            setPadding(32, 24, 32, 24)
+            setOnClickListener { handleUserSafeConfirmation() }
         }
-        val btnParams = LinearLayout.LayoutParams(
+        val btnParams1 = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(24, 16, 24, 16)
-        }
-        root.addView(okButton, btnParams)
+        ).apply { setMargins(16, 8, 16, 12) }
+        rootLayout.addView(actionButtonPrimary, btnParams1)
 
-        setContentView(root)
+        // Secondary Action Button (Immediate Emergency Call)
+        val relativeName = SehatApp.instance.settingsManager.relativeName
+        actionButtonSecondary = Button(this).apply {
+            text = "CALL $relativeName NOW"
+            textSize = 16f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#DC2626")) // Bright Red
+            setPadding(24, 18, 24, 18)
+            setOnClickListener {
+                triggerDirectCall("Manual emergency button pressed on alert screen")
+            }
+        }
+        val btnParams2 = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(16, 4, 16, 8) }
+        rootLayout.addView(actionButtonSecondary, btnParams2)
+
+        setContentView(rootLayout)
     }
 
-    private fun startCountdown() {
-        countDownTimer = object : CountDownTimer((countdownSeconds * 1000).toLong(), 1000L) {
+    /**
+     * Phase 1: Open microphone and listen for voice command "HELP".
+     */
+    private fun startPhase1ListeningForHelp() {
+        currentPhase = AlertPhase.LISTENING_FOR_HELP
+        val settings = SehatApp.instance.settingsManager
+        val relativeName = settings.relativeName
+
+        phaseBadge.text = "PHASE 1: LISTENING FOR 'HELP'"
+        phaseBadge.setBackgroundColor(Color.parseColor("#1E3A8A")) // Dark blue
+        phaseBadge.setTextColor(Color.parseColor("#93C5FD"))
+
+        promptTextView.text = "🎤 LISTENING FOR VOICE COMMAND 'HELP'..."
+        promptTextView.setTextColor(Color.parseColor("#38BDF8"))
+
+        substatusTextView.text = "Say 'HELP' loudly to immediately call $relativeName.\nOr tap green button if you are safe."
+
+        // Check audio recording permission
+        val hasMicPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasMicPermission) {
+            voiceListener = VoiceCommandListener(
+                context = this,
+                onHelpSpotted = { recognizedText ->
+                    runOnUiThread {
+                        handleVoiceHelpSpotted(recognizedText)
+                    }
+                },
+                onErrorOrSilence = { reason ->
+                    // Keep countdown running smoothly; if silence or no-match, timer will transition to Phase 2
+                }
+            ).apply {
+                start()
+            }
+        } else {
+            promptTextView.text = "Microphone permission required for 'HELP' command.\nAwaiting user input..."
+            promptTextView.setTextColor(Color.parseColor("#FBBF24"))
+        }
+
+        // Run Phase 1 countdown timer
+        activeTimer?.cancel()
+        activeTimer = object : CountDownTimer((voiceSeconds * 1000).toLong(), 1000L) {
             override fun onTick(millisUntilFinished: Long) {
                 val secLeft = (millisUntilFinished / 1000L).toInt() + 1
                 timerTextView.text = "$secLeft"
@@ -129,41 +245,214 @@ class AlertActivity : Activity() {
 
             override fun onFinish() {
                 timerTextView.text = "0"
-                handleCountdownExpired()
+                if (currentPhase == AlertPhase.LISTENING_FOR_HELP) {
+                    // No HELP received -> transition to Phase 2 voice confirmation alert
+                    transitionToPhase2VoiceAlert()
+                }
             }
         }.start()
     }
 
-    private fun handleUserOk() {
-        if (isResolved) return
-        isResolved = true
-        countDownTimer?.cancel()
+    /**
+     * Triggered when voice command "HELP" is successfully heard!
+     */
+    private fun handleVoiceHelpSpotted(recognizedPhrase: String) {
+        if (currentPhase != AlertPhase.LISTENING_FOR_HELP) return
+        currentPhase = AlertPhase.ESCALATED_CALLING
+
+        activeTimer?.cancel()
+        voiceListener?.stop()
+        AlertManager.stopAlarmAndVibration(this)
+
+        val settings = SehatApp.instance.settingsManager
+        val relativeName = settings.relativeName
+
+        phaseBadge.text = "DISTRESS VOICE COMMAND RECOGNIZED!"
+        phaseBadge.setBackgroundColor(Color.parseColor("#7F1D1D"))
+        phaseBadge.setTextColor(Color.YELLOW)
+
+        promptTextView.text = "🚨 HEARD: \"$recognizedPhrase\""
+        promptTextView.setTextColor(Color.parseColor("#F87171"))
+
+        timerTextView.text = "CALLING"
+        timerTextView.textSize = 42f
+
+        substatusTextView.text = "Calling $relativeName immediately..."
+        substatusTextView.setTextColor(Color.WHITE)
+
+        actionButtonPrimary.text = "DISMISS"
+        actionButtonPrimary.setBackgroundColor(Color.DKGRAY)
+        actionButtonPrimary.setTextColor(Color.WHITE)
+        actionButtonPrimary.setOnClickListener { finish() }
+
+        actionButtonSecondary.visibility = View.GONE
+
+        // Speak confirmation & initiate call
+        voiceAlertPrompt?.speak("Help command heard. Calling emergency contact now.")
+        EmergencyCallHelper.makeEmergencyCall(
+            context = this,
+            reason = "Voice distress command 'HELP' spotted (\"$recognizedPhrase\")",
+            probability = probability
+        )
+    }
+
+    /**
+     * Phase 2: "HELP" command was NOT received within listening window.
+     * Give voice alert: "PLEASE CONFIRM THAT YOU ARE SAFE" and await confirmation button press.
+     */
+    private fun transitionToPhase2VoiceAlert() {
+        if (currentPhase != AlertPhase.LISTENING_FOR_HELP) return
+        currentPhase = AlertPhase.AWAITING_SAFE_CONFIRMATION
+
+        voiceListener?.stop()
+        val settings = SehatApp.instance.settingsManager
+        val relativeName = settings.relativeName
+
+        // Change background to pulsing high-alert red
+        rootLayout.setBackgroundColor(Color.parseColor("#581C87")) // Purple-crimson alert
+        phaseBadge.text = "PHASE 2: SAFE CONFIRMATION REQUIRED"
+        phaseBadge.setBackgroundColor(Color.parseColor("#B45309")) // Amber
+        phaseBadge.setTextColor(Color.WHITE)
+
+        promptTextView.text = "📢 \"PLEASE CONFIRM THAT YOU ARE SAFE\""
+        promptTextView.setTextColor(Color.parseColor("#FEF08A"))
+
+        substatusTextView.text = "If you do not confirm, device will assume you are UNCONSCIOUS and call $relativeName automatically."
+        substatusTextView.setTextColor(Color.parseColor("#FDE047"))
+
+        actionButtonPrimary.text = "CONFIRM I AM SAFE"
+        actionButtonPrimary.setBackgroundColor(Color.parseColor("#10B981"))
+        actionButtonPrimary.setTextColor(Color.BLACK)
+
+        // Audible Voice Alert via TextToSpeech
+        voiceAlertPrompt?.speak("PLEASE CONFIRM THAT YOU ARE SAFE. Tap the button if you are unharmed.")
+
+        // Start background siren / vibration so it is audible
+        AlertManager.startAlarm(this)
+        AlertManager.startVibration(this)
+
+        // Schedule repeating TTS prompt every 5 seconds
+        val ttsRunnable = object : Runnable {
+            override fun run() {
+                if (currentPhase == AlertPhase.AWAITING_SAFE_CONFIRMATION) {
+                    voiceAlertPrompt?.speak("PLEASE CONFIRM THAT YOU ARE SAFE.")
+                    mainHandler.postDelayed(this, 5000L)
+                }
+            }
+        }
+        mainHandler.postDelayed(ttsRunnable, 5000L)
+
+        // Start Phase 2 countdown timer
+        activeTimer?.cancel()
+        activeTimer = object : CountDownTimer((confirmSeconds * 1000).toLong(), 1000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val secLeft = (millisUntilFinished / 1000L).toInt() + 1
+                timerTextView.text = "$secLeft"
+            }
+
+            override fun onFinish() {
+                timerTextView.text = "0"
+                if (currentPhase == AlertPhase.AWAITING_SAFE_CONFIRMATION) {
+                    handleUnconsciousTimeout()
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * User pressed "CONFIRM I AM SAFE" / "I'M OK".
+     */
+    private fun handleUserSafeConfirmation() {
+        if (currentPhase == AlertPhase.RESOLVED) return
+        currentPhase = AlertPhase.RESOLVED
+
+        activeTimer?.cancel()
+        voiceListener?.stop()
+        mainHandler.removeCallbacksAndMessages(null)
+        voiceAlertPrompt?.stop()
         AlertManager.onUserCancelled(this, probability)
+
+        Toast.makeText(this, "Confirmed: You are safe. Fall alert cancelled.", Toast.LENGTH_SHORT).show()
         finish()
     }
 
-    private fun handleCountdownExpired() {
-        if (isResolved) return
-        isResolved = true
-        AlertManager.onCountdownExpired(this, probability)
+    /**
+     * Timeout expired without user pressing confirm button.
+     * The device assumes the user may be UNCONSCIOUS!
+     * Automatically places the emergency call to the saved relative's number.
+     */
+    private fun handleUnconsciousTimeout() {
+        if (currentPhase != AlertPhase.AWAITING_SAFE_CONFIRMATION) return
+        currentPhase = AlertPhase.ESCALATED_CALLING
 
-        statusTextView.text = "ALERT ESCALATED!\nEmergency notification posted locally."
-        statusTextView.setTextColor(Color.YELLOW)
-        okButton.text = "DISMISS"
-        okButton.setBackgroundColor(Color.DKGRAY)
-        okButton.setTextColor(Color.WHITE)
-        okButton.setOnClickListener {
-            finish()
-        }
+        activeTimer?.cancel()
+        mainHandler.removeCallbacksAndMessages(null)
+        AlertManager.stopAlarmAndVibration(this)
+
+        val settings = SehatApp.instance.settingsManager
+        val relativeName = settings.relativeName
+        val relativePhone = settings.relativePhoneNumber
+
+        rootLayout.setBackgroundColor(Color.parseColor("#7F1D1D")) // Deep alert red
+
+        phaseBadge.text = "⚠️ USER UNRESPONSIVE - ASSUMED UNCONSCIOUS"
+        phaseBadge.setBackgroundColor(Color.parseColor("#991B1B"))
+        phaseBadge.setTextColor(Color.WHITE)
+
+        promptTextView.text = "🚨 UNCONSCIOUS STATE DETECTED"
+        promptTextView.setTextColor(Color.YELLOW)
+
+        timerTextView.text = "DIALING"
+        timerTextView.textSize = 42f
+
+        substatusTextView.text = "No response received. Calling $relativeName ($relativePhone) automatically..."
+        substatusTextView.setTextColor(Color.WHITE)
+
+        actionButtonPrimary.text = "DISMISS"
+        actionButtonPrimary.setBackgroundColor(Color.DKGRAY)
+        actionButtonPrimary.setTextColor(Color.WHITE)
+        actionButtonPrimary.setOnClickListener { finish() }
+
+        actionButtonSecondary.visibility = View.GONE
+
+        // Announce unconscious triage and make emergency phone call!
+        voiceAlertPrompt?.speak("No response received. User may be unconscious. Calling emergency contact now.")
+
+        EmergencyCallHelper.makeEmergencyCall(
+            context = this,
+            reason = "User unresponsive (unconscious) after fall verification timeout",
+            probability = probability
+        )
+    }
+
+    private fun triggerDirectCall(reason: String) {
+        if (currentPhase == AlertPhase.RESOLVED) return
+        currentPhase = AlertPhase.ESCALATED_CALLING
+
+        activeTimer?.cancel()
+        voiceListener?.stop()
+        mainHandler.removeCallbacksAndMessages(null)
+        AlertManager.stopAlarmAndVibration(this)
+
+        voiceAlertPrompt?.speak("Emergency call requested.")
+        EmergencyCallHelper.makeEmergencyCall(
+            context = this,
+            reason = reason,
+            probability = probability
+        )
+        finish()
     }
 
     override fun onBackPressed() {
-        // Do not allow accidental back-press dismissal; user must tap "I'M OK"
+        // Prevent accidental back dismiss; user must press "CONFIRM I AM SAFE"
     }
 
     override fun onDestroy() {
-        countDownTimer?.cancel()
-        if (!isResolved) {
+        activeTimer?.cancel()
+        voiceListener?.stop()
+        mainHandler.removeCallbacksAndMessages(null)
+        voiceAlertPrompt?.stop()
+        if (currentPhase != AlertPhase.RESOLVED) {
             AlertManager.stopAlarmAndVibration(this)
         }
         super.onDestroy()
